@@ -624,6 +624,22 @@ async def upload_avatar(file: UploadFile = File(...), user=Depends(get_current_u
     return {"path": result["path"], "url": f"/api/files/{result['path']}", "size": result["size"]}
 
 
+@api_router.post("/upload-avatar-guest")
+async def upload_avatar_guest(file: UploadFile = File(...)):
+    """Anonymous avatar upload for the pre-checkout configurator."""
+    allowed = {"image/jpeg", "image/png", "image/webp"}
+    if file.content_type not in allowed:
+        raise HTTPException(400, "Format non supporté (JPEG, PNG ou WebP uniquement)")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Fichier trop volumineux (5 Mo max)")
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[file.content_type]
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    path = f"{APP_NAME}/guest/{day}/{uuid.uuid4()}.{ext}"
+    result = storage_put(path, data, file.content_type)
+    return {"path": result["path"], "url": f"/api/files/{result['path']}", "size": result["size"]}
+
+
 @api_router.get("/files/{path:path}")
 async def serve_file(path: str):
     if not path.startswith(f"{APP_NAME}/"):

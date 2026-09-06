@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 2 verification of the 3 UX bug fixes (theme thumbs, textual-free realistic card preview, drag & drop avatar). Backend: 25/25 pytest passed including 9 regression + new coverage for /api/upload-avatar (auth + rejects bad type), /api/upload-avatar-guest (public + rejects bad type + rejects >5MB), /api/files serving, /api/products, checkout with new profile fields (finish_id/theme_id/avatar_url), /api/auth/request-link, /api/me, /api/profile/{slug}/qr.png, /api/profile/{slug}/scan, /api/me/analytics/{slug}. Frontend: configurator step 1 renders finish tiles with realistic CardPreview (brushed gold/steel + matte black, gloss sweep, embossed NFC chip disc, NO text/branding) and theme tiles with ThemeThumb mini phone mockup (not Aa) for onyx/ivory/midnight/rose. Configurator step 2 shows drag&drop DropZone (data-testid=cfg-avatar-drop); the old 'URL de votre photo' input is gone; upload via hidden input calls POST /api/upload-avatar-guest and returns absolute /api/files/... URL. Dashboard /mon-profil shows dash-avatar-drop, upload with Bearer token works, avatar shown in phone mockup preview. No forbidden strings (KalliTag/TAP/NFC/SHARE/Tap/Share) inside any [data-testid^=card-preview-] element.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_kallitag.py",
+    "/app/backend/tests/test_uploads_and_regression.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now ~740 lines; still acceptable but plan to split into routers (auth, orders, uploads, profile, analytics).",
+    "/api/files path validation is minimal (only prefix check); path traversal request with '..' currently returns 400 (via storage_get) — good, but consider explicit reject of '..' segments in the route for defense in depth.",
+    "DropZone hides the browser file input but the visible dropzone is a <div role='button'>; consider keyboard-triggered upload (Enter/Space) for a11y.",
+    "CardPreview relies on inline styles for perspective/gradients; consider extracting to a small CSS module if reused elsewhere."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_uploads_and_regression.py"
+  ],
+  "success_rate": {"backend": "100% (25/25 pytest)", "frontend": "100% (all 3 bug fixes verified: no text on card, richer tiles, drag&drop upload guest + auth)"},
+  "test_credentials": "JWT for sandrosantinacci7@gmail.com from /tmp/session_tok used for authed tests; seeded paid order slug sandro-santinacci-e2de7e used for QR/scan/analytics regression.",
+  "seed_data_creation": "Guest and authed avatar objects uploaded to storage under kallitag/guest/<date>/ and kallitag/avatars/sandrosantinacci7-gmail-com/. Two TEST_*@example.com Stripe draft orders created via checkout regression.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Full regression suite is now at /app/backend/tests/ (test_kallitag.py + test_uploads_and_regression.py). Run `pytest /app/backend/tests/ -v`. Frontend selectors of interest: [data-testid=finish-{noir_mat|metal_brosse|or_brosse}], [data-testid=card-preview-<finish>], [data-testid=theme-thumb-{onyx|ivory|midnight|rose}], [data-testid=cfg-avatar-drop(+ -input,-filled,-replace,-clear)], [data-testid=dash-avatar-drop(...)]. For dashboard tests inject localStorage.setItem('kt_session', <token>) from /tmp/session_tok before navigating to /mon-profil.",
+  "rca of the issue": "N/A – no bugs found this iteration."
+}

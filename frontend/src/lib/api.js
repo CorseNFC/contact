@@ -29,6 +29,11 @@ export const uploadAvatar = async (file) => {
   fd.append("file", file);
   return (await api.post("/upload-avatar", fd, { headers: { "Content-Type": "multipart/form-data" } })).data;
 };
+export const uploadAvatarGuest = async (file) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  return (await api.post("/upload-avatar-guest", fd, { headers: { "Content-Type": "multipart/form-data" } })).data;
+};
 export const getAnalytics = async (slug) => (await api.get(`/me/analytics/${slug}`)).data;
 export const trackScan = async (slug) => (await api.post(`/profile/${slug}/scan`, {
   referrer: document.referrer || "",

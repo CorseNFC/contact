@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, Save, Upload, LogOut, Download, ExternalLink, BarChart3, Copy, Check } from "lucide-react";
+import { Loader2, Save, LogOut, Download, ExternalLink, BarChart3, Copy, Check } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ProfilePreview from "@/components/ProfilePreview";
+import DropZone from "@/components/DropZone";
 import { useAuth } from "@/context/AuthContext";
 import { updateProfile, uploadAvatar, getAnalytics, qrUrl, publicProfileUrl, API } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -20,10 +21,8 @@ export default function MyProfile() {
   const [activeSlug, setActiveSlug] = useState(null);
   const [profile, setProfile] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [analytics, setAnalytics] = useState(null);
-  const fileRef = useRef();
 
   const orders = (auth.user?.orders || []).filter((o) => o.payment_status === "paid");
 
@@ -72,21 +71,6 @@ export default function MyProfile() {
     } catch (e) {
       toast.error("Erreur lors de l'enregistrement");
     } finally { setSaving(false); }
-  };
-
-  const onFile = async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setUploading(true);
-    try {
-      const res = await uploadAvatar(f);
-      // Build absolute URL served by our backend
-      const absolute = `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
-      updateField({ avatar_url: absolute });
-      toast.success("Photo téléversée — n'oubliez pas d'enregistrer");
-    } catch (err) {
-      toast.error(err.response?.data?.detail || "Upload impossible");
-    } finally { setUploading(false); e.target.value = ""; }
   };
 
   const copyLink = async () => {
@@ -187,22 +171,16 @@ export default function MyProfile() {
 
                 <div>
                   <Label className="text-xs text-slate-400 mb-2 block">Photo de profil</Label>
-                  <div className="flex items-center gap-4">
-                    <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-amber-400/50 bg-slate-900 grid place-items-center">
-                      {profile.avatar_url
-                        ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                        : <span className="font-display font-bold text-amber-400 text-xl">{(profile.first_name?.[0] || "") + (profile.last_name?.[0] || "")}</span>}
-                    </div>
-                    <div>
-                      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onFile} className="hidden" data-testid="avatar-input" />
-                      <button onClick={() => fileRef.current?.click()} disabled={uploading} className="kt-btn-ghost text-xs inline-flex items-center gap-2" data-testid="btn-upload-avatar">
-                        {uploading ? <Loader2 className="animate-spin" size={14} /> : <Upload size={14} />} Téléverser (max 5 Mo)
-                      </button>
-                      {profile.avatar_url && (
-                        <button onClick={() => updateField({ avatar_url: "" })} className="ml-2 text-xs text-slate-500 hover:text-red-400" data-testid="btn-remove-avatar">Retirer</button>
-                      )}
-                    </div>
-                  </div>
+                  <DropZone
+                    value={profile.avatar_url}
+                    testid="dash-avatar-drop"
+                    onUpload={async (file) => {
+                      const res = await uploadAvatar(file);
+                      updateField({ avatar_url: `${process.env.REACT_APP_BACKEND_URL}${res.url}` });
+                    }}
+                    onClear={() => updateField({ avatar_url: "" })}
+                    hint="Glissez-déposez ou cliquez · JPEG, PNG, WebP · 5 Mo max · pensez à enregistrer"
+                  />
                 </div>
 
                 <div className="grid sm:grid-cols-2 gap-4">

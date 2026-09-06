@@ -7,8 +7,10 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CardPreview from "@/components/CardPreview";
 import ProfilePreview from "@/components/ProfilePreview";
+import ThemeThumb from "@/components/ThemeThumb";
+import DropZone from "@/components/DropZone";
 import { useConfig } from "@/context/ConfigContext";
-import { fetchProducts, startCheckout, formatEUR } from "@/lib/api";
+import { fetchProducts, startCheckout, formatEUR, uploadAvatarGuest } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -106,22 +108,25 @@ export default function Configurator() {
                   <h2 className="font-display font-semibold text-xl mb-1">2. Choisissez la finition physique</h2>
                   <p className="text-xs text-slate-400 mb-4">La carte est sobre — aucune inscription. La personnalisation se passe sur la page profil.</p>
                   <div className="grid sm:grid-cols-3 gap-4">
-                    {data.finishes.map((f) => (
-                      <button
-                        key={f.id}
-                        onClick={() => { cfg.updateProfile({ finish_id: f.id }); setPreviewMode("card"); }}
-                        data-testid={`finish-${f.id}`}
-                        className={`kt-card p-4 text-left transition ${cfg.profile.finish_id === f.id ? "border-amber-400/60 ring-1 ring-amber-500/30" : ""}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="w-10 h-10 rounded-lg border border-white/10" style={{ background: f.swatch }} />
-                          <div>
-                            <p className="text-sm font-medium">{f.name}</p>
-                            <p className="text-[11px] text-slate-500 leading-tight mt-0.5">{f.desc}</p>
+                    {data.finishes.map((f) => {
+                      const active = cfg.profile.finish_id === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => { cfg.updateProfile({ finish_id: f.id }); setPreviewMode("card"); }}
+                          data-testid={`finish-${f.id}`}
+                          className={`kt-card p-4 text-left transition ${active ? "border-amber-400/60 ring-1 ring-amber-500/30" : ""}`}
+                        >
+                          <div className="flex justify-center py-2">
+                            <CardPreview finishId={f.id} size="sm" tilt showLabel={false} />
                           </div>
-                        </div>
-                      </button>
-                    ))}
+                          <div className="mt-3">
+                            <p className="text-sm font-semibold">{f.name}</p>
+                            <p className="text-[11px] text-slate-500 leading-snug mt-0.5">{f.desc}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -134,12 +139,9 @@ export default function Configurator() {
                         key={t.id}
                         onClick={() => { cfg.updateProfile({ theme_id: t.id }); setPreviewMode("profile"); }}
                         data-testid={`theme-${t.id}`}
-                        className={`kt-card p-3 text-left transition ${cfg.profile.theme_id === t.id ? "border-amber-400/60 ring-1 ring-amber-500/30" : ""}`}
+                        className="text-left"
                       >
-                        <div className="h-14 rounded-md mb-2 grid place-items-center" style={{ background: t.bg, border: `1px solid ${t.accent}44` }}>
-                          <span className="text-xs font-display font-bold" style={{ color: t.accent }}>Aa</span>
-                        </div>
-                        <p className="text-sm font-medium">{t.name}</p>
+                        <ThemeThumb themeId={t.id} label={t.name} active={cfg.profile.theme_id === t.id} />
                       </button>
                     ))}
                   </div>
@@ -166,7 +168,19 @@ export default function Configurator() {
                   <Field label="Email professionnel" testid="input-email" type="email" value={cfg.profile.email} onChange={(v) => cfg.updateProfile({ email: v })} />
                 </div>
                 <Field label="Phrase d'accroche (optionnel)" testid="input-tagline" value={cfg.profile.tagline} onChange={(v) => cfg.updateProfile({ tagline: v })} placeholder="Ex : Aide les indépendants à décrocher plus de clients." />
-                <Field label="URL de votre photo (optionnel)" testid="input-avatar" value={cfg.profile.avatar_url} onChange={(v) => cfg.updateProfile({ avatar_url: v })} placeholder="https://..." />
+
+                <div>
+                  <Label className="text-xs text-slate-400 mb-2 block">Photo de profil (optionnel)</Label>
+                  <DropZone
+                    value={cfg.profile.avatar_url}
+                    testid="cfg-avatar-drop"
+                    onUpload={async (file) => {
+                      const res = await uploadAvatarGuest(file);
+                      cfg.updateProfile({ avatar_url: `${process.env.REACT_APP_BACKEND_URL}${res.url}` });
+                    }}
+                    onClear={() => cfg.updateProfile({ avatar_url: "" })}
+                  />
+                </div>
 
                 <div>
                   <h3 className="eyebrow mb-3">Boutons d'action rapide</h3>
