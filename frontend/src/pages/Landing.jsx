@@ -18,8 +18,6 @@ const previewProfile = {
   links: { linkedin: "https://linkedin.com/in/alexmoreau", instagram: "https://instagram.com/studionoir", website: "https://studionoir.fr", calendly: "https://calendly.com/alex" },
 };
 
-const pressLogos = ["Les Échos", "BFM Business", "Forbes FR", "French Tech", "Le Figaro"];
-
 const steps = [
   { n: "01", title: "Commandez & personnalisez", desc: "Choisissez votre modèle, personnalisez vos infos en direct. Aperçu réaliste avant paiement." },
   { n: "02", title: "Touchez un smartphone", desc: "Approchez votre carte d'un iPhone ou Android. Zéro app à installer pour votre interlocuteur." },
@@ -94,16 +92,6 @@ export default function Landing() {
               </div>
             </div>
           </motion.div>
-        </div>
-
-        {/* Press bar */}
-        <div className="max-w-7xl mx-auto mt-16 px-4 sm:px-6 lg:px-8">
-          <p className="eyebrow text-center mb-4">Ils parlent de nous</p>
-          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4 opacity-70">
-            {pressLogos.map((l) => (
-              <span key={l} className="font-display text-lg text-slate-400 tracking-wide">{l}</span>
-            ))}
-          </div>
         </div>
       </section>
 
