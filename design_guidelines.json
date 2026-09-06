@@ -1,0 +1,179 @@
+{
+  "project_name": "KalliTag",
+  "app_type": "hybrid_fullstack",
+  "design_archetype": "Luxury & Swiss High-Contrast (Archetype 5 + Archetype 4)",
+  "language": "fr",
+  "brand_positioning": "E-commerce haut de gamme pour cartes de visite NFC de prestige, avec modèle freemium : carte + profil de base inclus à vie sans abonnement obligatoire, et option KalliTag Pro (4.99€/mois ou 39€/an) pour fonctions avancées.",
+  "typography": {
+    "heading_font": "Outfit, Cabinet Grotesk, sans-serif",
+    "body_font": "Inter, system-ui, sans-serif",
+    "mono_font": "JetBrains Mono, monospace",
+    "scale": {
+      "hero_title": "text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.1]",
+      "section_title": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight",
+      "subsection_title": "text-xl sm:text-2xl font-semibold",
+      "card_title": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed text-slate-300",
+      "small_label": "text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] text-amber-400"
+    }
+  },
+  "colors": {
+    "background_dark": "#0B0F17",
+    "surface_card": "#131926",
+    "surface_card_border": "rgba(255, 255, 255, 0.08)",
+    "primary_gold": "#D4AF37",
+    "primary_gold_hover": "#E6CA65",
+    "gold_glow": "rgba(212, 175, 55, 0.25)",
+    "accent_emerald": "#10B981",
+    "text_primary": "#F8FAFC",
+    "text_secondary": "#94A3B8",
+    "text_muted": "#64748B",
+    "gradient_hero": "linear-gradient(135deg, #0B0F17 0%, #1A2234 50%, #0B0F17 100%)",
+    "gradient_gold_text": "linear-gradient(135deg, #FFF7D6 0%, #D4AF37 50%, #AA7C11 100%)",
+    "forbidden_colors": [
+      "#7351B7",
+      "#1B93A4"
+    ]
+  },
+  "layout_and_spacing": {
+    "container_max_width": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "section_padding": "py-16 sm:py-24",
+    "card_padding": "p-6 sm:p-8",
+    "bento_grid_mode": "Tetris & High Density Hybrid",
+    "border_radius": "rounded-2xl"
+  },
+  "key_features_sections": [
+    {
+      "id": "hero",
+      "title": "Hero Section Haute Couture",
+      "components": [
+        "Badge dorée 'Carte + Profil à vie inclus'",
+        "Titre principal percutant : 'La carte de visite NFC ultime pour signer vos deals en 3 secondes'",
+        "Aperçu 3D/Interactive de la Carte NFC Prestige avec effet brillance et personnalisation instantanée",
+        "CTA 'Commander ma Carte' (accent or intense avec micro-interaction hover)",
+        "Bandeau 'Ils parlent de nous' : Les Échos, Forbes France, BFM Business, French Tech, Le Figaro Entrepreneur"
+      ]
+    },
+    {
+      "id": "how_it_works",
+      "title": "Comment ça marche (3 étapes simples)",
+      "steps": [
+        {
+          "step": "01",
+          "name": "Commandez & Personnalisez",
+          "desc": "Choisissez votre modèle (Prestige Metal, Plaque, Médaillon) et personnalisez vos informations en direct."
+        },
+        {
+          "step": "02",
+          "name": "Touchez le smartphone",
+          "desc": "Approchez votre carte d'un iPhone ou Android. Aucune application requise pour votre interlocuteur."
+        },
+        {
+          "step": "03",
+          "name": "Partagez à vie & Récoltez",
+          "desc": "Transmettez vos coordonnées, réseaux, portfolio & captez des leads qualifiés sans coût récurrent."
+        }
+      ]
+    },
+    {
+      "id": "comparison_table",
+      "title": "Tableau Comparatif (Carte Papier vs LinkedIn vs KalliTag)",
+      "rows": [
+        {
+          "feature": "Coût annuel moyen",
+          "papier": "150€ / an (réimpressions)",
+          "linkedin": "Gratuit / Premium 600€",
+          "kallitag": "0€ / an (À vie inclus)"
+        },
+        {
+          "feature": "Mise à jour des coordonnées",
+          "papier": "Impossible (Jeter & réimprimer)",
+          "linkedin": "Nécessite réseau & app",
+          "kallitag": "En 1 clic depuis votre tableau de bord"
+        },
+        {
+          "feature": "Capture directe de leads (vCard / CRM)",
+          "papier": "Manuelle & lente",
+          "linkedin": "Limitée aux membres",
+          "kallitag": "Instantanée + Export CSV/vCard"
+        },
+        {
+          "feature": "Effet WOUAH lors des rendez-vous",
+          "papier": "Obsolète",
+          "linkedin": "Standard",
+          "kallitag": "Inoubliable (NFC Premium)"
+        }
+      ]
+    },
+    {
+      "id": "six_features",
+      "title": "6 Piliers d'Excellence",
+      "items": [
+        "Capture de Leads en direct",
+        "Synchronisation Instantanée",
+        "Mises à jour illimitées gratuites",
+        "Zero Application requise",
+        "Export vCard & CRM facile",
+        "Propriété & Sécurité des données (RGPD)"
+      ]
+    },
+    {
+      "id": "configurator",
+      "title": "Configurateur NFC Interactif en Temps Réel",
+      "functionality": [
+        "Sélection du produit : Carte NFC Prestige (Metal Noir/Or/Argent - 39,90€), Plaque NFC (19,90€), Médaillon NFC (14,90€)",
+        "4 à 6 templates visuels élégants (Onyx Minimal, Gold Executive, Marble Elite, Cyber Slate, Botanical Sage, Noir Intense)",
+        "Formulaire interactif : Nom, Prénom, Poste, Entreprise, Téléphone, Email, Upload Logo/Photo, Liens réseaux (LinkedIn, WhatsApp, Instagram, Website, Calendly)",
+        "Aperçu dynamique Recto / Verso de la carte avec rendu physique criant de vérité et QR Code de secours",
+        "Bouton 'Ajouter au Panier' avec récapitulatif instantané"
+      ]
+    },
+    {
+      "id": "freemium_pitch_pro",
+      "title": "Commercial Argument & KalliTag Pro Teaser",
+      "headline": "Inclus à vie avec votre carte. Allez plus loin si vous le souhaitez.",
+      "free_plan": "Profil Web NFC basique + VCard illimitée + Liens sociaux = 0€ à vie avec votre carte.",
+      "pro_plan": "KalliTag Pro (4.99€/mois ou 39€/an) : Analytics avancés des vues, QR code dynamique, intégration Calendly & CRM, thèmes personnalisés avancés, nom de domaine personnalisé."
+    },
+    {
+      "id": "checkout_tunnel",
+      "title": "Tunnel de Commande Stripe Fluide",
+      "steps": [
+        "Panier interactif avec aperçu personnalisé",
+        "Coordonnées & Adresse de Livraison France (Gratuite)",
+        "Paiement Stripe sécurisé (simulation CB / Apple Pay)",
+        "Écran de confirmation de commande avec récapitulatif, numéro de commande et lien d'accès immédiat à l'espace de configuration de profil"
+      ]
+    },
+    {
+      "id": "trust_badges",
+      "title": "Réassurance & Confiance",
+      "badges": [
+        "Garantie Satisfait ou Remboursé 30 jours",
+        "Livraison Suivie Offerte en France Métropolitaine",
+        "Paiement 100% Sécurisé Stripe & Cryptage SSL 256 bits",
+        "Support Client Français basé à Paris 7j/7"
+      ]
+    }
+  ],
+  "image_urls": {
+    "hero_card_mockup": "https://images.pexels.com/photos/4466448/pexels-photo-4466448.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "product_prestige": "https://images.pexels.com/photos/6373853/pexels-photo-6373853.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+    "executive_using_phone": "https://images.unsplash.com/photo-1614896478149-14b73921759e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwzfHxleGVjdXRpdmUlMjBzbWFydHBob25lJTIwY29udGFjdCUyMHNoYXJpbmclMjBsdXh1cnklMjBidXNpbmVzc3xlbnwwfHx8fDE3ODg3MjU5NDJ8MA&ixlib=rb-4.1.0&q=85",
+    "executive_meeting": "https://images.pexels.com/photos/5466300/pexels-photo-5466300.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+  },
+  "instructions_to_main_agent": [
+    "Toujours utiliser la langue française pour tout le texte, les boutons, les libellés et les notifications.",
+    "Créer une expérience fluide et haut de gamme style izitouch.io avec fond sombre noble, dorures subtiles et micro-animations Framer Motion / Lucide Icons.",
+    "Utiliser les composants Shadcn UI pré-installés (Tabs, Dialog, Select, Accordion, Switch, Tooltip, Sonner toast) en personnalisant leurs styles Tailwind pour coller au thème KalliTag.",
+    "Ajouter impérativement des attributs data-testid clairs sur TOUS les éléments interactifs (ex: data-testid='hero-cta-button', data-testid='configurator-template-onyx', data-testid='add-to-cart-button', data-testid='checkout-stripe-button').",
+    "Conserver une structure propre avec Navbar fixe avec effet glassmorphism (backdrop-blur-md bg-slate-950/80 border-b border-slate-800), footer d'entreprise élégant, et boutons de bascule de prévisualisation.",
+    "Gérer l'état du panier et de la configuration avec un React Context ou state bien structuré pour un passage au checkout instantané."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Eviter l'esthétique 'AI slop' basique : privilégier l'asymétrie noble, le contraste fort, les bordures subtiles lumineuses et les typos expressives.",
+    "Ne jamais ajouter de marges collées sur les conteneurs à bordure.",
+    "Ne jamais appliquer transition: all globale qui casse les effets de survol.",
+    "Accompagner chaque action clé d'une notification toast élégante (sonner)."
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "summary": "KalliTag MVP first test run. Backend: 9/9 pytest passed (products, checkout, payments/status, webhook signature). Frontend: Landing, Configurator wizard (3 steps), live preview all render/work correctly. CRITICAL bug in end-to-end checkout flow: POST /api/checkout returns 422 whenever the optional 'profile.email' field is left empty (default '' in ConfigContext) because backend Pydantic Optional[EmailStr] rejects empty strings. This blocks the whole Stripe redirect when user doesn't fill in the optional professional email.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/checkout", "issue": "Optional profile.email='' from frontend triggers Pydantic EmailStr validation error (422). ProfileConfig.email is declared Optional[EmailStr]=None but Pydantic v2 rejects empty string. Fix: add a validator to coerce '' -> None for email/EmailStr fields (or Union[EmailStr, Literal['']]=None). Blocks Stripe checkout for users who leave the optional email empty.", "priority": "CRITICAL"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Configurator -> Stripe checkout", "issue": "startCheckout sends profile with email='' (initial value in ConfigContext.initialProfile). Backend rejects with 422. Fix at frontend: strip empty strings before POST, or default email to null. Alternatively fix on backend (preferred).", "affected_selectors": ["[data-testid=checkout-stripe-button]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_kallitag.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Fix ProfileConfig.email handling: accept empty string by coercing to None (backend Pydantic validator) OR sanitize payload on frontend before POST /api/checkout.",
+    "After fix: re-run UI e2e — expected Stripe checkout redirect (checkout.stripe.com) from /configurateur step 3."
+  ],
+  "critical_code_review_comments": [
+    "Backend: Optional[EmailStr] with default None + frontend sending '' is a common Pydantic v2 pitfall. Add @field_validator('email', mode='before') to convert '' -> None on ProfileConfig (and consider same for ShippingAddress.line2 and links values which are already str, but any future EmailStr fields).",
+    "Backend server.py is a single 400+ line file — for MVP acceptable but plan to split into routers/models/services as it grows.",
+    "Backend: stripe.error.InvalidRequestError fallback for automatic_tax is good defensive coding. OK.",
+    "Frontend ConfigContext.initialProfile.email='' should probably be null to align with backend nullable Optional fields.",
+    "Backend correctly excludes _id via projection ({'_id':0}) — good.",
+    "Webhook idempotency for _on_paid uses modified_count check — correct."
+  ],
+  "updated_files": ["/app/backend/tests/test_kallitag.py"],
+  "success_rate": {"backend": "100% (9/9 pytest)", "frontend": "80% (UI + preview work; checkout redirect blocked by backend 422)"},
+  "test_credentials": "n/a (no auth in MVP)",
+  "seed_data_creation": "Test orders inserted in Mongo with contact_email TEST_*@example.com via checkout tests (draft status, not paid).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite at /app/backend/tests/test_kallitag.py covers products, checkout happy path, invalid inputs, webhook signature check, unknown session. After main agent fixes the ProfileConfig.email='' handling, re-run pytest and re-run the UI script to verify redirect to checkout.stripe.com from /configurateur step 3 button [data-testid=checkout-stripe-button]. Landing hero CTA testid: hero-cta-order.",
+  "rca of the issue": "ROOT CAUSE: Backend ProfileConfig defines `email: Optional[EmailStr] = None`. In Pydantic v2, EmailStr does not accept empty string — even when Optional, passing '' triggers value_error 'must have an @-sign'. Frontend ConfigContext.initialProfile has email='' and updateProfile keeps it as '' when the user doesn't touch the field. Configurator submits the whole profile object, so POST /api/checkout receives profile.email='' and returns 422. REPRO: fill configurator step2 leaving 'Email professionnel' blank -> continue to step3 -> click Payer. MITIGATION (backend, preferred): add `@field_validator('email','logo_url', mode='before')` on ProfileConfig returning None for empty strings. OR frontend: sanitize payload with `email: cfg.profile.email || null`."
+}

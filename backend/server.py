@@ -1,0 +1,424 @@
+"""KalliTag backend — landing + configurator + Stripe checkout + Resend emails."""
+from fastapi import FastAPI, APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+from pymongo import MongoClient
+import os
+import logging
+import uuid
+import stripe
+import httpx
+from html import escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
+import ipaddress
+import re
+from pathlib import Path
+from pydantic import BaseModel, Field, EmailStr, field_validator
+from typing import List, Optional, Literal, Dict, Any
+from datetime import datetime, timezone
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / ".env")
+
+# --- Mongo ---
+mongo_url = os.environ["MONGO_URL"]
+mongo_client = MongoClient(mongo_url)
+db = mongo_client[os.environ["DB_NAME"]]
+orders_col = db["orders"]
+payment_transactions = db["payment_transactions"]
+
+# --- Stripe ---
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or "sk_test_emergent"
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+
+# --- Email ---
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "KalliTag")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "delivered@resend.dev")
+
+app = FastAPI(title="KalliTag API")
+api_router = APIRouter(prefix="/api")
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("kallitag")
+
+# ---------- Product catalog (source of truth for prices via Stripe lookup_key) ----------
+PRODUCT_CATALOG = {
+    "card_prestige": {
+        "id": "card_prestige",
+        "name": "Carte NFC Prestige",
+        "tagline": "Métal noble, gravure laser, effet WOW garanti",
+        "description": "Notre carte signature. Métal brossé, 4 finitions (Onyx, Or, Argent, Cuivre), format carte de crédit.",
+        "price_cents": 3990,
+        "currency": "eur",
+        "lookup_key": "card_prestige_onetime",
+        "image": "https://images.unsplash.com/photo-1559526324-c1f275fbfa32?w=800&auto=format&fit=crop&q=80",
+        "features": ["Métal massif 30g", "Gravure laser incluse", "NFC + QR de secours", "Livré sous 5 jours"],
+    },
+    "plaque_nfc": {
+        "id": "plaque_nfc",
+        "name": "Plaque NFC",
+        "tagline": "À coller sur téléphone, vitrine ou bureau",
+        "description": "Plaque discrète et robuste. Colle 3M industrielle, résistante à l'eau. Parfait pour vitrines et véhicules.",
+        "price_cents": 1990,
+        "currency": "eur",
+        "lookup_key": "plaque_nfc_onetime",
+        "image": "https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=800&auto=format&fit=crop&q=80",
+        "features": ["Format 35mm", "Adhésif 3M longue durée", "Résiste à l'eau", "6 coloris"],
+    },
+    "medaillon_nfc": {
+        "id": "medaillon_nfc",
+        "name": "Médaillon NFC",
+        "tagline": "Porte-clés élégant, toujours sur vous",
+        "description": "Le porte-clés qui fait vos présentations. Cuir véritable ou aluminium anodisé, gravure personnalisée.",
+        "price_cents": 1490,
+        "currency": "eur",
+        "lookup_key": "medaillon_nfc_onetime",
+        "image": "https://images.unsplash.com/photo-1618-160702438-4fb649590341?w=800&auto=format&fit=crop&q=80",
+        "features": ["Cuir ou aluminium", "Gravure au laser", "Anneau titane", "Compact 30mm"],
+    },
+}
+
+TEMPLATES = [
+    {"id": "onyx", "name": "Onyx Minimal", "accent": "#F8FAFC", "bg": "#0B0F17"},
+    {"id": "gold", "name": "Gold Executive", "accent": "#D4AF37", "bg": "#111111"},
+    {"id": "marble", "name": "Marble Elite", "accent": "#0B0F17", "bg": "#F1EBE0"},
+    {"id": "cyber", "name": "Cyber Slate", "accent": "#10B981", "bg": "#0F172A"},
+    {"id": "botanical", "name": "Botanical Sage", "accent": "#052e16", "bg": "#DCEFDF"},
+    {"id": "noir", "name": "Noir Intense", "accent": "#D4AF37", "bg": "#000000"},
+]
+
+
+# ---------- Models ----------
+class ProfileConfig(BaseModel):
+    template_id: str
+    first_name: str
+    last_name: str
+    job_title: Optional[str] = ""
+    company: Optional[str] = ""
+    phone: Optional[str] = ""
+    email: Optional[EmailStr] = None
+    logo_url: Optional[str] = ""
+    links: Dict[str, str] = Field(default_factory=dict)  # linkedin, whatsapp, instagram, website, calendly
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _empty_email_to_none(cls, v):
+        if v == "" or v is None:
+            return None
+        return v
+
+
+class ShippingAddress(BaseModel):
+    full_name: str
+    line1: str
+    line2: Optional[str] = ""
+    city: str
+    postal_code: str
+    country: str = "FR"
+
+
+class CheckoutRequest(BaseModel):
+    product_id: Literal["card_prestige", "plaque_nfc", "medaillon_nfc"]
+    quantity: int = Field(1, ge=1, le=10)
+    profile: ProfileConfig
+    shipping: ShippingAddress
+    contact_email: EmailStr
+    origin_url: str
+
+
+# ---------- Routes ----------
+@api_router.get("/")
+async def root():
+    return {"message": "KalliTag API", "status": "ok"}
+
+
+@api_router.get("/products")
+async def get_products():
+    return {"products": list(PRODUCT_CATALOG.values()), "templates": TEMPLATES}
+
+
+@api_router.get("/products/{product_id}")
+async def get_product(product_id: str):
+    if product_id not in PRODUCT_CATALOG:
+        raise HTTPException(404, "Produit introuvable")
+    return PRODUCT_CATALOG[product_id]
+
+
+@api_router.post("/checkout")
+async def create_checkout(req: CheckoutRequest):
+    """Create Stripe Checkout Session for a single product + save order draft."""
+    product = PRODUCT_CATALOG.get(req.product_id)
+    if not product:
+        raise HTTPException(404, "Produit introuvable")
+
+    prices = stripe.Price.list(lookup_keys=[product["lookup_key"]], active=True, limit=1).data
+    if not prices:
+        raise HTTPException(500, f"Prix Stripe manquant pour {product['lookup_key']}")
+    price = prices[0]
+
+    order_id = str(uuid.uuid4())
+    order_doc = {
+        "order_id": order_id,
+        "product_id": req.product_id,
+        "product_name": product["name"],
+        "quantity": req.quantity,
+        "amount_cents": price.unit_amount * req.quantity,
+        "currency": price.currency,
+        "profile": req.profile.model_dump(),
+        "shipping": req.shipping.model_dump(),
+        "contact_email": req.contact_email,
+        "status": "draft",
+        "payment_status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    orders_col.insert_one(dict(order_doc))
+
+    kwargs = dict(
+        line_items=[{"price": price.id, "quantity": req.quantity}],
+        mode="payment",
+        success_url=f"{req.origin_url}/paiement/succes?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{req.origin_url}/paiement/annule",
+        customer_email=req.contact_email,
+        metadata={"order_id": order_id, "product_id": req.product_id},
+        shipping_address_collection={"allowed_countries": ["FR", "BE", "LU", "CH", "MC"]},
+    )
+    # Physical goods in FR → OCS + Stripe Tax (calc_only). If Stripe Tax isn't
+    # enabled on the sandbox, fall back to DIY so checkout still works.
+    try:
+        session = stripe.checkout.Session.create(**kwargs, automatic_tax={"enabled": True},
+                                                  billing_address_collection="required")
+    except stripe.error.InvalidRequestError:
+        session = stripe.checkout.Session.create(**kwargs)
+
+    payment_transactions.insert_one({
+        "session_id": session.id,
+        "order_id": order_id,
+        "product_id": req.product_id,
+        "amount": order_doc["amount_cents"],
+        "currency": price.currency,
+        "status": "initiated",
+        "payment_status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    })
+    orders_col.update_one({"order_id": order_id}, {"$set": {"session_id": session.id}})
+    return {"checkout_url": session.url, "session_id": session.id, "order_id": order_id}
+
+
+@api_router.get("/payments/status/{session_id}")
+async def get_status(session_id: str):
+    record = payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(404, "Transaction introuvable")
+    if record.get("payment_status") != "paid":
+        try:
+            s = stripe.checkout.Session.retrieve(session_id)
+            if s.payment_status == "paid" or s.status == "complete":
+                payment_transactions.update_one(
+                    {"session_id": session_id, "payment_status": {"$ne": "paid"}},
+                    {"$set": {"status": "completed", "payment_status": "paid",
+                              "stripe_payment_intent_id": s.payment_intent,
+                              "updated_at": datetime.now(timezone.utc).isoformat()}},
+                )
+                orders_col.update_one(
+                    {"order_id": record.get("order_id"), "payment_status": {"$ne": "paid"}},
+                    {"$set": {"status": "paid", "payment_status": "paid",
+                              "updated_at": datetime.now(timezone.utc).isoformat()}},
+                )
+                await _on_paid(record.get("order_id"))
+                record = payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+        except stripe.error.StripeError:
+            pass
+    order = orders_col.find_one({"order_id": record.get("order_id")}, {"_id": 0}) if record.get("order_id") else None
+    return {"session_id": record["session_id"], "status": record["status"],
+            "payment_status": record["payment_status"], "order": order}
+
+
+@api_router.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(400, "Signature invalide")
+    obj, t = event["data"]["object"], event["type"]
+    if t == "checkout.session.completed":
+        result = payment_transactions.update_one(
+            {"session_id": obj["id"], "payment_status": {"$ne": "paid"}},
+            {"$set": {"status": "completed", "payment_status": obj.get("payment_status", "paid"),
+                      "stripe_payment_intent_id": obj.get("payment_intent"),
+                      "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
+        pt = payment_transactions.find_one({"session_id": obj["id"]})
+        if pt and pt.get("order_id"):
+            orders_col.update_one(
+                {"order_id": pt["order_id"], "payment_status": {"$ne": "paid"}},
+                {"$set": {"status": "paid", "payment_status": "paid",
+                          "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+            if result.modified_count:  # only send once
+                await _on_paid(pt["order_id"])
+    elif t == "checkout.session.async_payment_failed":
+        payment_transactions.update_one({"session_id": obj["id"]},
+            {"$set": {"status": "failed", "payment_status": "failed",
+                      "updated_at": datetime.now(timezone.utc).isoformat()}})
+    elif t == "checkout.session.expired":
+        payment_transactions.update_one({"session_id": obj["id"]},
+            {"$set": {"status": "expired", "payment_status": "expired",
+                      "updated_at": datetime.now(timezone.utc).isoformat()}})
+    return {"status": "ok"}
+
+
+# --------- Email sending (Resend via Emergent proxy) ---------
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan(); scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} ≠ real link host {real!r} (G3)")
+
+
+async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
+    if not EMAIL_KEY:
+        logger.warning("EMERGENT_EMAIL_KEY missing — email skipped")
+        return None
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(f"{EMAIL_BASE_URL}/api/v1/email/send",
+                                     headers={"X-Email-Key": EMAIL_KEY}, json=payload)
+        resp.raise_for_status()
+        return resp.json().get("id")
+    except Exception as e:
+        logger.error(f"email send failed: {e}")
+        return None
+
+
+async def _on_paid(order_id: str):
+    if not order_id:
+        return
+    order = orders_col.find_one({"order_id": order_id}, {"_id": 0})
+    if not order:
+        return
+    if order.get("email_sent"):
+        return
+    profile = order.get("profile", {})
+    name = f"{profile.get('first_name','')} {profile.get('last_name','')}".strip() or "cher client"
+    amount = f"{order['amount_cents']/100:.2f} €"
+    subject = f"Commande KalliTag confirmée — #{order_id[:8].upper()}"
+    html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
+<tr><td style="max-width:560px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
+<h1 style="color:#D4AF37;margin:0 0 8px;font-size:24px">Merci {escape(name)} !</h1>
+<p style="color:#94A3B8;margin:0 0 20px">Votre commande KalliTag est confirmée. Nous préparons votre {escape(order.get('product_name',''))} personnalisé et vous l'expédions sous 5 jours ouvrés.</p>
+<div style="background:#0B0F17;border:1px solid rgba(212,175,55,0.3);border-radius:12px;padding:20px;margin:20px 0">
+<p style="margin:0 0 6px;color:#94A3B8;font-size:12px;text-transform:uppercase;letter-spacing:0.15em">Récapitulatif</p>
+<p style="margin:0;color:#F8FAFC;font-size:16px"><strong>{escape(order.get('product_name',''))}</strong> × {order.get('quantity',1)}</p>
+<p style="margin:8px 0 0;color:#D4AF37;font-size:20px;font-weight:bold">{amount}</p>
+<p style="margin:12px 0 0;color:#64748B;font-size:12px">Commande #{order_id[:8].upper()}</p>
+</div>
+<p style="color:#94A3B8;font-size:14px;margin:0">Un email de suivi de livraison vous sera envoyé dès l'expédition.</p>
+<p style="color:#64748B;font-size:12px;margin:24px 0 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">Envoyé par {escape(EMAIL_FROM_NAME)}. Nous ne demandons jamais votre mot de passe ni vos coordonnées bancaires par email.</p>
+</td></tr></table>"""
+    email_id = await send_email(to=order["contact_email"], subject=subject, html=html)
+
+    # admin notif
+    admin_html = f"""<table role="presentation" width="100%" style="padding:24px;font-family:Arial,sans-serif">
+<tr><td>
+<h2>Nouvelle commande #{order_id[:8].upper()}</h2>
+<p>Produit : {escape(order.get('product_name',''))} × {order.get('quantity',1)} — <strong>{amount}</strong></p>
+<p>Client : {escape(name)} — {escape(order.get('contact_email',''))}</p>
+<p>Livraison : {escape(order.get('shipping',{}).get('line1',''))}, {escape(order.get('shipping',{}).get('postal_code',''))} {escape(order.get('shipping',{}).get('city',''))}</p>
+<p>Template : {escape(profile.get('template_id',''))}</p>
+<p style="color:#64748B;font-size:12px">Notification admin — {escape(EMAIL_FROM_NAME)}</p>
+</td></tr></table>"""
+    await send_email(to=ADMIN_EMAIL, subject=f"[ADMIN] Commande #{order_id[:8].upper()}", html=admin_html)
+
+    orders_col.update_one({"order_id": order_id}, {"$set": {"email_sent": True, "email_id": email_id}})
+
+
+app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    mongo_client.close()
