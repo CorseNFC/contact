@@ -28,8 +28,8 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-8">
           {link("/", "Accueil", "nav-home")}
           {link("/configurateur", "Configurer", "nav-configurator")}
-          <a href="#tarifs" className="text-sm font-medium text-slate-300 hover:text-white" data-testid="nav-pricing">Tarifs</a>
-          <a href="#faq" className="text-sm font-medium text-slate-300 hover:text-white" data-testid="nav-faq">FAQ</a>
+          <a href="/#tarifs" className="text-sm font-medium text-slate-300 hover:text-white" data-testid="nav-pricing">Tarifs</a>
+          <a href="/#faq" className="text-sm font-medium text-slate-300 hover:text-white" data-testid="nav-faq">FAQ</a>
         </div>
         <div className="flex items-center gap-3">
           {user ? (

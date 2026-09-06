@@ -20,6 +20,17 @@ export const fetchProduct = async (id) => (await api.get(`/products/${id}`)).dat
 export const startCheckout = async (payload) => (await api.post("/checkout", payload)).data;
 export const getPaymentStatus = async (sessionId) => (await api.get(`/payments/status/${sessionId}`)).data;
 
+export const proCheckout = async (plan, origin_url) => (await api.post("/pro/checkout", { plan, origin_url })).data;
+export const getMyPro = async () => (await api.get("/me/pro")).data;
+export const proPortal = async (return_url) => (await api.post("/pro/portal", { return_url })).data;
+
+export const releaseCard = async (slug) => (await api.post(`/me/orders/${slug}/release`)).data;
+export const reclaimCard = async (code, email) => (await api.post("/reclaim", { code, email })).data;
+
+export const submitLead = async (slug, lead) => (await api.post(`/profile/${slug}/lead`, lead)).data;
+export const listLeads = async (slug) => (await api.get(`/me/leads/${slug}`)).data;
+export const leadsCsvUrl = (slug) => `${API}/me/leads/${slug}/export.csv`;
+
 export const requestMagicLink = async (email, origin_url) => (await api.post("/auth/request-link", { email, origin_url })).data;
 export const verifyMagicLink = async (token) => (await api.get("/auth/verify", { params: { token } })).data;
 export const getMe = async () => (await api.get("/me")).data;

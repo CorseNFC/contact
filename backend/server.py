@@ -35,6 +35,8 @@ orders_col = db["orders"]
 payment_transactions = db["payment_transactions"]
 magic_tokens_col = db["magic_tokens"]
 scans_col = db["profile_scans"]
+subscriptions_col = db["subscriptions"]
+leads_col = db["leads"]
 
 # --- Stripe ---
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or "sk_test_emergent"
@@ -70,36 +72,39 @@ logger = logging.getLogger("kallitag")
 PRODUCT_CATALOG = {
     "card_prestige": {
         "id": "card_prestige",
+        "kind": "profile",
         "name": "Carte NFC Prestige",
-        "tagline": "Métal noble, gravure laser, effet WOW garanti",
-        "description": "Notre carte signature. Métal brossé, 4 finitions (Onyx, Or, Argent, Cuivre), format carte de crédit.",
+        "tagline": "Votre page profil pro à vie sur une carte métal",
+        "description": "Notre carte signature. Métal brossé, 3 finitions (Noir mat, Métal, Or brossé). Personnalisez votre page profil web à volonté.",
         "price_cents": 3990,
         "currency": "eur",
         "lookup_key": "card_prestige_onetime",
-        "image": "https://images.unsplash.com/photo-1559526324-c1f275fbfa32?w=800&auto=format&fit=crop&q=80",
-        "features": ["Métal massif 30g", "Gravure laser incluse", "NFC + QR de secours", "Livré sous 5 jours"],
+        "image": "/products/prestige.png",
+        "features": ["Métal massif 30g", "3 finitions premium", "Profil web à vie", "Livré sous 5 jours"],
     },
     "plaque_nfc": {
         "id": "plaque_nfc",
-        "name": "Plaque NFC",
-        "tagline": "À coller sur téléphone, vitrine ou bureau",
-        "description": "Plaque discrète et robuste. Colle 3M industrielle, résistante à l'eau. Parfait pour vitrines et véhicules.",
+        "kind": "reviews",
+        "name": "Plaque Avis Google",
+        "tagline": "Récoltez des avis Google en un tap",
+        "description": "Plaque NFC à coller au comptoir. Le client tape, votre page d'avis Google s'ouvre. Vous choisissez seulement l'URL cible.",
         "price_cents": 1990,
         "currency": "eur",
         "lookup_key": "plaque_nfc_onetime",
-        "image": "https://images.unsplash.com/photo-1607083206968-13611e3d76db?w=800&auto=format&fit=crop&q=80",
-        "features": ["Format 35mm", "Adhésif 3M longue durée", "Résiste à l'eau", "6 coloris"],
+        "image": "/products/plaque.png",
+        "features": ["Format 35mm", "Adhésif 3M longue durée", "Résiste à l'eau", "Boost avis Google"],
     },
     "medaillon_nfc": {
         "id": "medaillon_nfc",
-        "name": "Médaillon NFC",
-        "tagline": "Porte-clés élégant, toujours sur vous",
-        "description": "Le porte-clés qui fait vos présentations. Cuir véritable ou aluminium anodisé, gravure personnalisée.",
+        "kind": "pet",
+        "name": "Médaillon Animal",
+        "tagline": "La médaille NFC qui ramène votre animal à la maison",
+        "description": "Médaillon élégant pour chien ou chat. Si votre animal est perdu, celui qui le trouve tape le médaillon et accède à ses infos + votre contact.",
         "price_cents": 1490,
         "currency": "eur",
         "lookup_key": "medaillon_nfc_onetime",
-        "image": "https://images.unsplash.com/photo-1618-160702438-4fb649590341?w=800&auto=format&fit=crop&q=80",
-        "features": ["Cuir ou aluminium", "Gravure au laser", "Anneau titane", "Compact 30mm"],
+        "image": "/products/medaillon.png",
+        "features": ["Métal massif 30mm", "Anneau titane", "Infos animal + contact", "Gravé sans usure"],
     },
 }
 
@@ -124,18 +129,36 @@ PROFILE_THEMES = [
 class ProfileConfig(BaseModel):
     theme_id: str = "onyx"
     finish_id: str = "noir_mat"
-    first_name: str
-    last_name: str
+    # Profile card fields
+    first_name: str = ""
+    last_name: str = ""
     job_title: Optional[str] = ""
     company: Optional[str] = ""
-    tagline: Optional[str] = ""  # phrase d'accroche sur la page profil
+    tagline: Optional[str] = ""
     phone: Optional[str] = ""
     email: Optional[EmailStr] = None
-    avatar_url: Optional[str] = ""  # photo de profil (URL)
+    avatar_url: Optional[str] = ""
     logo_url: Optional[str] = ""
-    links: Dict[str, str] = Field(default_factory=dict)  # linkedin, whatsapp, instagram, website, calendly, tiktok, youtube
+    links: Dict[str, str] = Field(default_factory=dict)
+    # Google reviews plaque fields
+    business_name: Optional[str] = ""
+    reviews_url: Optional[str] = ""
+    reviews_message: Optional[str] = ""
+    # Pet medallion fields
+    pet_name: Optional[str] = ""
+    pet_species: Optional[str] = ""  # "chien" | "chat" | "autre"
+    pet_breed: Optional[str] = ""
+    pet_birthdate: Optional[str] = ""
+    pet_sex: Optional[str] = ""
+    chip_number: Optional[str] = ""
+    owner_name: Optional[str] = ""
+    owner_phone: Optional[str] = ""
+    owner_email: Optional[EmailStr] = None
+    vet_contact: Optional[str] = ""
+    medical_notes: Optional[str] = ""
+    lost_message: Optional[str] = ""
 
-    @field_validator("email", mode="before")
+    @field_validator("email", "owner_email", mode="before")
     @classmethod
     def _empty_email_to_none(cls, v):
         if v == "" or v is None:
@@ -263,7 +286,10 @@ async def get_public_profile(slug: str):
         order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
     if not order:
         raise HTTPException(404, "Profil introuvable")
-    return {"slug": slug, "profile": order.get("profile", {}), "product_name": order.get("product_name")}
+    product = PRODUCT_CATALOG.get(order.get("product_id"), {})
+    return {"slug": slug, "profile": order.get("profile", {}),
+            "product_name": order.get("product_name"), "product_id": order.get("product_id"),
+            "product_kind": product.get("kind", "profile")}
 
 
 @api_router.get("/products/{product_id}")
@@ -400,6 +426,33 @@ async def stripe_webhook(request: Request):
         payment_transactions.update_one({"session_id": obj["id"]},
             {"$set": {"status": "expired", "payment_status": "expired",
                       "updated_at": datetime.now(timezone.utc).isoformat()}})
+    elif t == "customer.subscription.created" or t == "customer.subscription.updated":
+        cust_email = (obj.get("metadata") or {}).get("email") or ""
+        if not cust_email:
+            try:
+                c = stripe.Customer.retrieve(obj["customer"])
+                cust_email = (c.get("email") or "").lower()
+            except stripe.error.StripeError:
+                cust_email = ""
+        subscriptions_col.update_one(
+            {"stripe_subscription_id": obj["id"]},
+            {"$set": {
+                "stripe_subscription_id": obj["id"],
+                "stripe_customer_id": obj.get("customer"),
+                "email": (cust_email or "").lower(),
+                "status": obj.get("status"),
+                "current_period_end": obj.get("current_period_end"),
+                "cancel_at_period_end": obj.get("cancel_at_period_end", False),
+                "price_lookup_key": ((obj.get("items", {}).get("data") or [{}])[0].get("price", {}) or {}).get("lookup_key"),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
+    elif t == "customer.subscription.deleted":
+        subscriptions_col.update_one(
+            {"stripe_subscription_id": obj["id"]},
+            {"$set": {"status": "canceled", "updated_at": datetime.now(timezone.utc).isoformat()}},
+        )
     return {"status": "ok"}
 
 
@@ -692,6 +745,182 @@ async def track_scan(slug: str, evt: ScanEvent, request: Request):
         "ip": ip,
     })
     return {"status": "ok"}
+
+
+# ---------- Pro subscriptions ----------
+def user_is_pro(email: str) -> bool:
+    sub = subscriptions_col.find_one({"email": (email or "").lower(), "status": {"$in": ["active", "trialing", "past_due"]}}, {"_id": 0})
+    return bool(sub)
+
+
+class ProCheckoutRequest(BaseModel):
+    plan: Literal["monthly", "yearly"]
+    origin_url: str
+
+
+@api_router.post("/pro/checkout")
+async def pro_checkout(req: ProCheckoutRequest, user=Depends(get_current_user)):
+    lookup_key = "kallitag_pro_monthly" if req.plan == "monthly" else "kallitag_pro_yearly"
+    prices = stripe.Price.list(lookup_keys=[lookup_key], active=True, limit=1).data
+    if not prices:
+        raise HTTPException(500, f"Prix Stripe manquant: {lookup_key}")
+    price = prices[0]
+    session = stripe.checkout.Session.create(
+        line_items=[{"price": price.id, "quantity": 1}],
+        mode="subscription",
+        customer_email=user["email"],
+        success_url=f"{req.origin_url.rstrip('/')}/mon-profil?pro=success",
+        cancel_url=f"{req.origin_url.rstrip('/')}/tarifs?pro=cancel",
+        metadata={"email": user["email"], "plan": req.plan},
+        subscription_data={"metadata": {"email": user["email"], "plan": req.plan}},
+    )
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@api_router.get("/me/pro")
+async def get_my_pro(user=Depends(get_current_user)):
+    sub = subscriptions_col.find_one({"email": user["email"].lower()}, {"_id": 0}, sort=[("updated_at", -1)])
+    active = user_is_pro(user["email"])
+    return {"active": active, "subscription": sub}
+
+
+class PortalRequest(BaseModel):
+    return_url: str
+
+
+@api_router.post("/pro/portal")
+async def pro_portal(req: PortalRequest, user=Depends(get_current_user)):
+    sub = subscriptions_col.find_one({"email": user["email"].lower()}, {"_id": 0}, sort=[("updated_at", -1)])
+    if not sub or not sub.get("stripe_customer_id"):
+        raise HTTPException(404, "Aucun abonnement trouvé")
+    portal = stripe.billing_portal.Session.create(
+        customer=sub["stripe_customer_id"],
+        return_url=req.return_url,
+    )
+    return {"url": portal.url}
+
+
+# ---------- Card release / reclaim ----------
+def _gen_code(n: int = 8) -> str:
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # human-friendly (no O/0/I/1)
+    return "".join(secrets.choice(alphabet) for _ in range(n))
+
+
+@api_router.post("/me/orders/{slug}/release")
+async def release_card(slug: str, user=Depends(get_current_user)):
+    order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Commande introuvable")
+    if (order.get("contact_email") or "").lower() != user["email"].lower():
+        raise HTTPException(403, "Non autorisé")
+    code = _gen_code(8)
+    orders_col.update_one(
+        {"profile_slug": slug},
+        {"$set": {
+            "transfer_code": code,
+            "transfer_code_created_at": datetime.now(timezone.utc).isoformat(),
+            "previous_owner_email": order.get("contact_email"),
+            "contact_email": "",
+            "status": "unclaimed",
+            "profile": {"theme_id": "onyx", "finish_id": order.get("profile", {}).get("finish_id", "noir_mat"),
+                        "first_name": "", "last_name": "", "links": {}},
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    return {"transfer_code": code}
+
+
+class ReclaimRequest(BaseModel):
+    code: str
+    email: EmailStr
+
+
+@api_router.post("/reclaim")
+async def reclaim_card(req: ReclaimRequest):
+    code = (req.code or "").strip().upper()
+    if not code:
+        raise HTTPException(400, "Code requis")
+    order = orders_col.find_one({"transfer_code": code}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Code invalide ou déjà utilisé")
+    orders_col.update_one(
+        {"transfer_code": code},
+        {"$set": {
+            "contact_email": req.email.lower(),
+            "status": "paid",  # transferred but paid (owner switch)
+            "transfer_code": None,
+            "transferred_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    session = make_session_token(req.email.lower())
+    return {"session_token": session, "slug": order["profile_slug"]}
+
+
+# ---------- Leads (lead capture on public profile) ----------
+class LeadIn(BaseModel):
+    name: str
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = ""
+    message: Optional[str] = ""
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _e2n(cls, v):
+        return None if (v == "" or v is None) else v
+
+
+@api_router.post("/profile/{slug}/lead")
+async def create_lead(slug: str, lead: LeadIn):
+    order = orders_col.find_one({"profile_slug": slug}, {"_id": 0, "contact_email": 1})
+    if not order:
+        raise HTTPException(404, "Profil introuvable")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "profile_slug": slug,
+        "owner_email": (order.get("contact_email") or "").lower(),
+        "name": lead.name[:120],
+        "email": lead.email,
+        "phone": (lead.phone or "")[:40],
+        "message": (lead.message or "")[:2000],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    leads_col.insert_one(dict(doc))
+    return {"status": "ok"}
+
+
+@api_router.get("/me/leads/{slug}")
+async def list_leads(slug: str, user=Depends(get_current_user)):
+    order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Profil introuvable")
+    if (order.get("contact_email") or "").lower() != user["email"].lower():
+        raise HTTPException(403, "Non autorisé")
+    total = leads_col.count_documents({"profile_slug": slug})
+    is_pro = user_is_pro(user["email"])
+    limit = 500 if is_pro else 3
+    leads = list(leads_col.find({"profile_slug": slug}, {"_id": 0}).sort("created_at", -1).limit(limit))
+    return {"total": total, "leads": leads, "is_pro": is_pro, "free_limit": 3}
+
+
+@api_router.get("/me/leads/{slug}/export.csv")
+async def export_leads_csv(slug: str, user=Depends(get_current_user)):
+    order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Profil introuvable")
+    if (order.get("contact_email") or "").lower() != user["email"].lower():
+        raise HTTPException(403, "Non autorisé")
+    if not user_is_pro(user["email"]):
+        raise HTTPException(402, "Export CSV réservé à KalliTag Pro")
+    leads = list(leads_col.find({"profile_slug": slug}, {"_id": 0}).sort("created_at", -1))
+    import csv as _csv
+    buf = io.StringIO()
+    w = _csv.writer(buf)
+    w.writerow(["Date", "Nom", "Email", "Téléphone", "Message"])
+    for l in leads:
+        w.writerow([l.get("created_at", ""), l.get("name", ""), l.get("email") or "", l.get("phone", ""), l.get("message", "")])
+    return Response(content=buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="leads-{slug}.csv"'})
 
 
 @api_router.get("/me/analytics/{slug}")

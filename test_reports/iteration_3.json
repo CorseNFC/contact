@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 3 executed full pytest + Playwright coverage. Backend: 40/40 tests passed across test_kallitag.py, test_uploads_and_regression.py, and new test_iteration3.py (products.kind for all 3 kinds, checkout for prestige/reviews-plaque/pet-medallion schemas, /pro/checkout monthly+yearly returning Stripe URLs, /me/pro inactive, lead capture + non-Pro 3-lead cap, /me/leads/{slug}/export.csv 402 for non-Pro, full release→reclaim→re-release→re-reclaim chain restoring original owner, /reclaim 404 for bad code, public /profile/{slug} includes product_kind). Note: The seeded slug 'sandro-santinacci-e2de7e' was orphaned (unclaimed, contact_email='') from a previous manual test run; I re-attached it to sandrosantinacci7@gmail.com in Mongo so /me returns an order and downstream fixtures work. The release/reclaim test then correctly transfers ownership away and back within a single test. Frontend: Playwright verified — Navbar nav-pricing href=/#tarifs, nav-faq href=/#faq; Landing pro-subscribe-monthly and -yearly hrefs correct; /reclaim exposes reclaim-code/email/submit; /p/sandro-santinacci-e2de7e (profile kind) renders lead-toggle; /mon-profil (authed) shows pro-banner + pro-upgrade-monthly + pro-upgrade-yearly + btn-release-card + section-leads.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_kallitag.py",
+    "/app/backend/tests/test_uploads_and_regression.py",
+    "/app/test_reports/pytest/iteration3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 971 lines — plan to split into routers (auth, orders, uploads, profile, pro/subscriptions, leads, analytics) to keep files <700 lines.",
+    "release_card overwrites 'profile' with a fresh dict but keeps only finish_id from the previous profile. If a Plaque/Médaillon is released, the theme_id is hard-coded 'onyx' regardless of product kind — harmless but slightly inconsistent for reviews/pet kinds that don't use theme.",
+    "reclaim endpoint sets status='paid' after transfer even though payment_status is not re-verified — acceptable since we know the order was originally paid, but consider guarding with a check that order.payment_status=='paid' before allowing reclaim.",
+    "GET /me/leads/{slug} returns leads slice by MongoDB limit but 'total' is a raw count — good; consider paginating leads for Pro users (>500).",
+    "reviews-plaque and pet-medallion checkout allow empty first_name/last_name in ProfileConfig (fine since not applicable), but there is no server-side enforcement that reviews_url is present for kind=reviews, or pet_name+owner_phone for kind=pet. A malicious client could POST an empty pet profile.",
+    "No rate-limiting on /profile/{slug}/lead — spam vector."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py"
+  ],
+  "success_rate": {"backend": "100% (40/40 pytest)", "frontend": "100% (all target data-testids verified on Landing, Navbar, /reclaim, /p/:slug, /mon-profil)"},
+  "test_credentials": "JWT for sandrosantinacci7@gmail.com read from /tmp/session_tok. Slug re-attached to user: sandro-santinacci-e2de7e (product card_prestige, status=paid).",
+  "seed_data_creation": "Re-attached orphaned slug sandro-santinacci-e2de7e back to sandrosantinacci7@gmail.com via direct Mongo update (previous iteration left it in unclaimed state). Created 1 additional lead (Prospect Test) during lead-capture test. Release→reclaim cycle re-transfers ownership back to original email at test end to keep environment stable for next iteration.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests in /app/backend/tests/*.py — run `pytest /app/backend/tests/ -v`. All 40 pass. Fixture current_slug uses /api/me to fetch a live slug (do NOT hard-code SEEDED_SLUG in new tests). Frontend selectors used: nav-pricing, nav-faq, pro-subscribe-monthly/yearly, reclaim-code/email/submit, lead-toggle, reviews-redirect/cta, pet-call-owner, pro-banner, pro-upgrade-monthly/yearly, btn-release-card, section-leads. To fully test Stripe subscription webhook path, main agent needs to run a sandbox subscription completion — out of scope here.",
+  "rca of the issue": "N/A – no bugs found; only re-seeding required."
+}

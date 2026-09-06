@@ -12,6 +12,7 @@ import PublicProfile from "@/pages/PublicProfile";
 import Login from "@/pages/Login";
 import AuthCallback from "@/pages/AuthCallback";
 import MyProfile from "@/pages/MyProfile";
+import Reclaim from "@/pages/Reclaim";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
             <Route path="/connexion" element={<Login />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/mon-profil" element={<MyProfile />} />
+            <Route path="/reclaim" element={<Reclaim />} />
           </Routes>
         </BrowserRouter>
       </ConfigProvider>

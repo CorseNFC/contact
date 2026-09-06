@@ -157,47 +157,111 @@ export default function Configurator() {
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6" data-testid="step-2">
                 <div>
                   <h2 className="font-display font-semibold text-xl">Vos informations</h2>
-                  <p className="text-xs text-slate-400 mt-1">Ces infos apparaissent sur votre page profil. Modifiables à vie.</p>
-                </div>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <Field label="Prénom *" testid="input-first-name" value={cfg.profile.first_name} onChange={(v) => cfg.updateProfile({ first_name: v })} />
-                  <Field label="Nom *" testid="input-last-name" value={cfg.profile.last_name} onChange={(v) => cfg.updateProfile({ last_name: v })} />
-                  <Field label="Poste" testid="input-job-title" value={cfg.profile.job_title} onChange={(v) => cfg.updateProfile({ job_title: v })} />
-                  <Field label="Entreprise" testid="input-company" value={cfg.profile.company} onChange={(v) => cfg.updateProfile({ company: v })} />
-                  <Field label="Téléphone" testid="input-phone" value={cfg.profile.phone} onChange={(v) => cfg.updateProfile({ phone: v })} />
-                  <Field label="Email professionnel" testid="input-email" type="email" value={cfg.profile.email} onChange={(v) => cfg.updateProfile({ email: v })} />
-                </div>
-                <Field label="Phrase d'accroche (optionnel)" testid="input-tagline" value={cfg.profile.tagline} onChange={(v) => cfg.updateProfile({ tagline: v })} placeholder="Ex : Aide les indépendants à décrocher plus de clients." />
-
-                <div>
-                  <Label className="text-xs text-slate-400 mb-2 block">Photo de profil (optionnel)</Label>
-                  <DropZone
-                    value={cfg.profile.avatar_url}
-                    testid="cfg-avatar-drop"
-                    onUpload={async (file) => {
-                      const res = await uploadAvatarGuest(file);
-                      cfg.updateProfile({ avatar_url: `${process.env.REACT_APP_BACKEND_URL}${res.url}` });
-                    }}
-                    onClear={() => cfg.updateProfile({ avatar_url: "" })}
-                  />
+                  <p className="text-xs text-slate-400 mt-1">{
+                    product.kind === "reviews" ? "Où envoyer les clients qui tapent votre plaque." :
+                    product.kind === "pet" ? "Infos sur votre animal et vos coordonnées si perdu." :
+                    "Ces infos apparaissent sur votre page profil. Modifiables à vie."
+                  }</p>
                 </div>
 
-                <div>
-                  <h3 className="eyebrow mb-3">Boutons d'action rapide</h3>
-                  <p className="text-xs text-slate-500 mb-3">Chaque lien devient un bouton sur votre page — vos contacts vous joignent en 1 tap.</p>
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <Field label="LinkedIn" testid="input-linkedin" value={cfg.profile.links.linkedin} onChange={(v) => cfg.updateLinks({ linkedin: v })} placeholder="https://linkedin.com/in/..." />
-                    <Field label="Instagram" testid="input-instagram" value={cfg.profile.links.instagram} onChange={(v) => cfg.updateLinks({ instagram: v })} placeholder="https://instagram.com/..." />
-                    <Field label="WhatsApp" testid="input-whatsapp" value={cfg.profile.links.whatsapp} onChange={(v) => cfg.updateLinks({ whatsapp: v })} placeholder="https://wa.me/33..." />
-                    <Field label="Site web" testid="input-website" value={cfg.profile.links.website} onChange={(v) => cfg.updateLinks({ website: v })} placeholder="https://..." />
-                    <Field label="Calendly" testid="input-calendly" value={cfg.profile.links.calendly} onChange={(v) => cfg.updateLinks({ calendly: v })} placeholder="https://calendly.com/..." />
-                    <Field label="TikTok" testid="input-tiktok" value={cfg.profile.links.tiktok} onChange={(v) => cfg.updateLinks({ tiktok: v })} placeholder="https://tiktok.com/@..." />
-                    <Field label="YouTube" testid="input-youtube" value={cfg.profile.links.youtube} onChange={(v) => cfg.updateLinks({ youtube: v })} placeholder="https://youtube.com/@..." />
-                  </div>
-                </div>
+                {product.kind === "reviews" && (
+                  <>
+                    <Field label="Nom de l'établissement *" testid="input-business-name" value={cfg.profile.business_name} onChange={(v) => cfg.updateProfile({ business_name: v })} />
+                    <Field label="URL de vos avis Google *" testid="input-reviews-url" value={cfg.profile.reviews_url} onChange={(v) => cfg.updateProfile({ reviews_url: v })} placeholder="https://g.page/r/..." />
+                    <Field label="Message d'accueil (optionnel)" testid="input-reviews-message" value={cfg.profile.reviews_message} onChange={(v) => cfg.updateProfile({ reviews_message: v })} placeholder="Merci pour votre visite, un avis nous ferait plaisir !" />
+                  </>
+                )}
+
+                {product.kind === "pet" && (
+                  <>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <Field label="Nom de l'animal *" testid="input-pet-name" value={cfg.profile.pet_name} onChange={(v) => cfg.updateProfile({ pet_name: v })} />
+                      <Field label="Espèce" testid="input-pet-species" value={cfg.profile.pet_species} onChange={(v) => cfg.updateProfile({ pet_species: v })} placeholder="Chien, Chat…" />
+                      <Field label="Race" testid="input-pet-breed" value={cfg.profile.pet_breed} onChange={(v) => cfg.updateProfile({ pet_breed: v })} />
+                      <Field label="Sexe" testid="input-pet-sex" value={cfg.profile.pet_sex} onChange={(v) => cfg.updateProfile({ pet_sex: v })} placeholder="Mâle / Femelle" />
+                      <Field label="Date de naissance" testid="input-pet-birthdate" value={cfg.profile.pet_birthdate} onChange={(v) => cfg.updateProfile({ pet_birthdate: v })} placeholder="JJ/MM/AAAA" />
+                      <Field label="N° de puce" testid="input-pet-chip" value={cfg.profile.chip_number} onChange={(v) => cfg.updateProfile({ chip_number: v })} />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-slate-400 mb-2 block">Photo de l'animal (optionnel)</Label>
+                      <DropZone value={cfg.profile.avatar_url} testid="cfg-avatar-drop"
+                        onUpload={async (file) => { const res = await uploadAvatarGuest(file); cfg.updateProfile({ avatar_url: `${process.env.REACT_APP_BACKEND_URL}${res.url}` }); }}
+                        onClear={() => cfg.updateProfile({ avatar_url: "" })} />
+                    </div>
+                    <div className="border-t border-white/5 pt-4">
+                      <p className="eyebrow mb-3">Vos coordonnées (propriétaire)</p>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <Field label="Nom propriétaire *" testid="input-owner-name" value={cfg.profile.owner_name} onChange={(v) => cfg.updateProfile({ owner_name: v })} />
+                        <Field label="Téléphone *" testid="input-owner-phone" value={cfg.profile.owner_phone} onChange={(v) => cfg.updateProfile({ owner_phone: v })} />
+                        <Field label="Email" testid="input-owner-email" type="email" value={cfg.profile.owner_email} onChange={(v) => cfg.updateProfile({ owner_email: v })} />
+                        <Field label="Vétérinaire" testid="input-vet" value={cfg.profile.vet_contact} onChange={(v) => cfg.updateProfile({ vet_contact: v })} />
+                      </div>
+                      <div className="mt-4">
+                        <Label className="text-xs text-slate-400 mb-1.5 block">Notes médicales (allergies, traitement…)</Label>
+                        <textarea value={cfg.profile.medical_notes || ""} onChange={(e) => cfg.updateProfile({ medical_notes: e.target.value })} rows={2}
+                                  data-testid="input-medical-notes"
+                                  className="w-full px-3 py-2 rounded-md bg-slate-900/60 border border-white/10 text-slate-100 text-sm" />
+                      </div>
+                      <div className="mt-4">
+                        <Label className="text-xs text-slate-400 mb-1.5 block">Message si perdu(e)</Label>
+                        <textarea value={cfg.profile.lost_message || ""} onChange={(e) => cfg.updateProfile({ lost_message: e.target.value })} rows={2}
+                                  data-testid="input-lost-message"
+                                  placeholder="Si vous m'avez trouvé, merci d'appeler mon humain. Récompense !"
+                                  className="w-full px-3 py-2 rounded-md bg-slate-900/60 border border-white/10 text-slate-100 text-sm" />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {product.kind === "profile" && (
+                  <>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <Field label="Prénom *" testid="input-first-name" value={cfg.profile.first_name} onChange={(v) => cfg.updateProfile({ first_name: v })} />
+                      <Field label="Nom *" testid="input-last-name" value={cfg.profile.last_name} onChange={(v) => cfg.updateProfile({ last_name: v })} />
+                      <Field label="Poste" testid="input-job-title" value={cfg.profile.job_title} onChange={(v) => cfg.updateProfile({ job_title: v })} />
+                      <Field label="Entreprise" testid="input-company" value={cfg.profile.company} onChange={(v) => cfg.updateProfile({ company: v })} />
+                      <Field label="Téléphone" testid="input-phone" value={cfg.profile.phone} onChange={(v) => cfg.updateProfile({ phone: v })} />
+                      <Field label="Email professionnel" testid="input-email" type="email" value={cfg.profile.email} onChange={(v) => cfg.updateProfile({ email: v })} />
+                    </div>
+                    <Field label="Phrase d'accroche (optionnel)" testid="input-tagline" value={cfg.profile.tagline} onChange={(v) => cfg.updateProfile({ tagline: v })} placeholder="Ex : Aide les indépendants à décrocher plus de clients." />
+
+                    <div>
+                      <Label className="text-xs text-slate-400 mb-2 block">Photo de profil (optionnel)</Label>
+                      <DropZone
+                        value={cfg.profile.avatar_url}
+                        testid="cfg-avatar-drop"
+                        onUpload={async (file) => {
+                          const res = await uploadAvatarGuest(file);
+                          cfg.updateProfile({ avatar_url: `${process.env.REACT_APP_BACKEND_URL}${res.url}` });
+                        }}
+                        onClear={() => cfg.updateProfile({ avatar_url: "" })}
+                      />
+                    </div>
+
+                    <div>
+                      <h3 className="eyebrow mb-3">Boutons d'action rapide</h3>
+                      <p className="text-xs text-slate-500 mb-3">Chaque lien devient un bouton sur votre page — vos contacts vous joignent en 1 tap.</p>
+                      <div className="grid sm:grid-cols-2 gap-4">
+                        <Field label="LinkedIn" testid="input-linkedin" value={cfg.profile.links.linkedin} onChange={(v) => cfg.updateLinks({ linkedin: v })} placeholder="https://linkedin.com/in/..." />
+                        <Field label="Instagram" testid="input-instagram" value={cfg.profile.links.instagram} onChange={(v) => cfg.updateLinks({ instagram: v })} placeholder="https://instagram.com/..." />
+                        <Field label="WhatsApp" testid="input-whatsapp" value={cfg.profile.links.whatsapp} onChange={(v) => cfg.updateLinks({ whatsapp: v })} placeholder="https://wa.me/33..." />
+                        <Field label="Site web" testid="input-website" value={cfg.profile.links.website} onChange={(v) => cfg.updateLinks({ website: v })} placeholder="https://..." />
+                        <Field label="Calendly" testid="input-calendly" value={cfg.profile.links.calendly} onChange={(v) => cfg.updateLinks({ calendly: v })} placeholder="https://calendly.com/..." />
+                        <Field label="TikTok" testid="input-tiktok" value={cfg.profile.links.tiktok} onChange={(v) => cfg.updateLinks({ tiktok: v })} placeholder="https://tiktok.com/@..." />
+                        <Field label="YouTube" testid="input-youtube" value={cfg.profile.links.youtube} onChange={(v) => cfg.updateLinks({ youtube: v })} placeholder="https://youtube.com/@..." />
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div className="flex justify-between">
                   <Button onClick={() => setStep(1)} variant="ghost" className="kt-btn-ghost" data-testid="prev-step-1">Retour</Button>
-                  <Button onClick={() => canGoStep2 ? setStep(3) : toast.error("Prénom et nom requis")} className="kt-btn-gold" data-testid="next-step-3">Continuer <ArrowRight size={16} /></Button>
+                  <Button onClick={() => {
+                    const ok = product.kind === "reviews" ? (cfg.profile.business_name && cfg.profile.reviews_url)
+                             : product.kind === "pet" ? (cfg.profile.pet_name && cfg.profile.owner_name && cfg.profile.owner_phone)
+                             : (cfg.profile.first_name && cfg.profile.last_name);
+                    ok ? setStep(3) : toast.error("Merci de remplir les champs obligatoires (*)");
+                  }} className="kt-btn-gold" data-testid="next-step-3">Continuer <ArrowRight size={16} /></Button>
                 </div>
               </motion.div>
             )}

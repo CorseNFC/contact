@@ -195,7 +195,15 @@ export default function Landing() {
                   <li key={x} className="flex items-center gap-2"><Check size={16} className="text-amber-400" />{x}</li>
                 ))}
               </ul>
-              <p className="mt-6 text-xs text-slate-500">Bientôt disponible — restez sur votre plan gratuit sans limite en attendant.</p>
+              <div className="mt-6 grid grid-cols-2 gap-3">
+                <a href="/mon-profil?upgrade=monthly" className="kt-btn-gold justify-center text-sm" data-testid="pro-subscribe-monthly">
+                  4,99 € / mois
+                </a>
+                <a href="/mon-profil?upgrade=yearly" className="kt-btn-ghost justify-center text-sm inline-flex items-center" data-testid="pro-subscribe-yearly">
+                  39 € / an (économisez 20€)
+                </a>
+              </div>
+              <p className="mt-3 text-[11px] text-slate-500">Connexion requise avant paiement · Résiliable à tout moment</p>
             </div>
           </div>
         </div>
