@@ -32,6 +32,15 @@ CATALOG = [
             {"lookup_key": "medaillon_nfc_onetime", "amount": 1490, "currency": "eur"},
         ],
     },
+    {
+        "emergent_product_id": "kallitag_pro",
+        "name": "KalliTag Pro",
+        "tax_code": "txcd_10103001",
+        "prices": [
+            {"lookup_key": "kallitag_pro_monthly", "amount": 499, "currency": "eur", "interval": "month"},
+            {"lookup_key": "kallitag_pro_yearly", "amount": 3900, "currency": "eur", "interval": "year"},
+        ],
+    },
 ]
 
 
@@ -74,6 +83,8 @@ def main():
             if not existing:
                 kwargs = dict(product=product.id, unit_amount=p["amount"], currency=p["currency"],
                               lookup_key=p["lookup_key"], transfer_lookup_key=True)
+                if p.get("interval"):
+                    kwargs["recurring"] = {"interval": p["interval"]}
                 created = stripe.Price.create(**kwargs)
                 print(f"  price {p['lookup_key']}: {created.id}")
             else:
