@@ -1,14 +1,19 @@
 """KalliTag backend — landing + configurator + Stripe checkout + Resend emails."""
-from fastapi import FastAPI, APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, UploadFile, File, Header, Response
+from fastapi.responses import JSONResponse, StreamingResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 import os
+import io
 import logging
 import uuid
+import secrets
 import stripe
 import httpx
+import jwt
+import qrcode
+import requests
 from html import escape
 from html.parser import HTMLParser
 from urllib.parse import urlparse
@@ -17,7 +22,7 @@ import re
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, field_validator
 from typing import List, Optional, Literal, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -28,6 +33,8 @@ mongo_client = MongoClient(mongo_url)
 db = mongo_client[os.environ["DB_NAME"]]
 orders_col = db["orders"]
 payment_transactions = db["payment_transactions"]
+magic_tokens_col = db["magic_tokens"]
+scans_col = db["profile_scans"]
 
 # --- Stripe ---
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or "sk_test_emergent"
@@ -38,7 +45,20 @@ STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
 EMAIL_BASE_URL = "https://integrations.emergentagent.com"
 EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
 EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "KalliTag")
-ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "delivered@resend.dev")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "sandrosantinacci7@gmail.com")
+
+# --- Auth / session ---
+SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
+SESSION_ALGO = "HS256"
+MAGIC_LINK_TTL = timedelta(minutes=20)
+SESSION_TTL = timedelta(days=30)
+
+# --- Object storage (Emergent) ---
+STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+APP_NAME = os.environ.get("APP_NAME", "kallitag")
+_storage_key: Optional[str] = None
 
 app = FastAPI(title="KalliTag API")
 api_router = APIRouter(prefix="/api")
@@ -146,6 +166,82 @@ def _slugify(s: str) -> str:
     s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
     s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
     return s or "profil"
+
+
+# ---------- Auth helpers ----------
+def make_session_token(email: str) -> str:
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {"sub": email.lower(), "iat": int(now.timestamp()), "exp": int((now + SESSION_TTL).timestamp())},
+        SESSION_SECRET, algorithm=SESSION_ALGO,
+    )
+
+
+def decode_session_token(token: str) -> Optional[str]:
+    try:
+        data = jwt.decode(token, SESSION_SECRET, algorithms=[SESSION_ALGO])
+        return data.get("sub")
+    except jwt.PyJWTError:
+        return None
+
+
+async def get_current_user(authorization: Optional[str] = Header(None)) -> Dict[str, str]:
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(401, "Non authentifié")
+    token = authorization.split(" ", 1)[1].strip()
+    email = decode_session_token(token)
+    if not email:
+        raise HTTPException(401, "Session expirée")
+    return {"email": email}
+
+
+# ---------- Object storage helpers ----------
+def init_storage(force: bool = False) -> Optional[str]:
+    global _storage_key
+    if _storage_key and not force:
+        return _storage_key
+    if not EMERGENT_LLM_KEY:
+        return None
+    try:
+        resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_LLM_KEY}, timeout=30)
+        resp.raise_for_status()
+        _storage_key = resp.json()["storage_key"]
+        logger.info("Object storage initialized")
+        return _storage_key
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
+        return None
+
+
+def storage_put(path: str, data: bytes, content_type: str) -> Dict[str, Any]:
+    key = init_storage()
+    if not key:
+        raise HTTPException(503, "Stockage indisponible")
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120,
+    )
+    if resp.status_code == 404:  # key may be stale
+        key = init_storage(force=True)
+        resp = requests.put(
+            f"{STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": key, "Content-Type": content_type},
+            data=data, timeout=120,
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def storage_get(path: str) -> tuple:
+    key = init_storage()
+    if not key:
+        raise HTTPException(503, "Stockage indisponible")
+    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    if resp.status_code == 404:
+        raise HTTPException(404, "Fichier introuvable")
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 
 # ---------- Routes ----------
@@ -439,7 +535,181 @@ async def _on_paid(order_id: str):
     orders_col.update_one({"order_id": order_id}, {"$set": {"email_sent": True, "email_id": email_id}})
 
 
+# ---------- Auth (magic link) ----------
+class MagicLinkRequest(BaseModel):
+    email: EmailStr
+    origin_url: str
+
+
+@api_router.post("/auth/request-link")
+async def request_magic_link(req: MagicLinkRequest):
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    magic_tokens_col.insert_one({
+        "token": token,
+        "email": req.email.lower(),
+        "used": False,
+        "expires_at": (now + MAGIC_LINK_TTL).isoformat(),
+        "created_at": now.isoformat(),
+    })
+    origin = req.origin_url.rstrip("/")
+    if not origin.startswith("https://"):
+        raise HTTPException(400, "origin_url must be https")
+    link = f"{origin}/auth/callback?token={token}"
+    subject = f"Votre lien de connexion {EMAIL_FROM_NAME}"
+    html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
+<tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
+<h1 style="color:#D4AF37;margin:0 0 8px;font-size:22px">Se connecter à votre espace</h1>
+<p style="color:#94A3B8;margin:0 0 20px;font-size:14px">Cliquez sur le bouton ci-dessous pour accéder à votre profil KalliTag. Ce lien expire dans 20 minutes.</p>
+<p style="margin:24px 0"><a href="{escape(link)}" style="display:inline-block;padding:14px 28px;background:#D4AF37;color:#0B0F17;text-decoration:none;border-radius:9999px;font-weight:bold">Ouvrir mon espace</a></p>
+<p style="color:#64748B;font-size:12px;margin:24px 0 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">Si vous n'êtes pas à l'origine de cette demande, ignorez cet email. Envoyé par {escape(EMAIL_FROM_NAME)}. Nous ne demandons jamais votre mot de passe.</p>
+</td></tr></table>"""
+    email_id = await send_email(to=req.email, subject=subject, html=html)
+    return {"status": "sent", "email_id": email_id}
+
+
+@api_router.get("/auth/verify")
+async def verify_magic_link(token: str):
+    doc = magic_tokens_col.find_one({"token": token, "used": False})
+    if not doc:
+        raise HTTPException(400, "Lien invalide ou déjà utilisé")
+    if datetime.fromisoformat(doc["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(400, "Lien expiré")
+    magic_tokens_col.update_one({"token": token}, {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}})
+    session = make_session_token(doc["email"])
+    return {"session_token": session, "email": doc["email"]}
+
+
+@api_router.get("/me")
+async def get_me(user=Depends(get_current_user)):
+    email = user["email"]
+    orders = list(orders_col.find(
+        {"contact_email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}},
+        {"_id": 0},
+    ).sort("created_at", -1))
+    return {"email": email, "orders": orders}
+
+
+class ProfileUpdate(BaseModel):
+    profile: ProfileConfig
+
+
+@api_router.patch("/me/profile/{slug}")
+async def update_my_profile(slug: str, body: ProfileUpdate, user=Depends(get_current_user)):
+    order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Profil introuvable")
+    if (order.get("contact_email") or "").lower() != user["email"].lower():
+        raise HTTPException(403, "Ce profil ne vous appartient pas")
+    orders_col.update_one(
+        {"profile_slug": slug},
+        {"$set": {"profile": body.profile.model_dump(), "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"status": "ok"}
+
+
+# ---------- Avatar upload ----------
+@api_router.post("/upload-avatar")
+async def upload_avatar(file: UploadFile = File(...), user=Depends(get_current_user)):
+    allowed = {"image/jpeg", "image/png", "image/webp"}
+    if file.content_type not in allowed:
+        raise HTTPException(400, "Format non supporté (JPEG, PNG ou WebP uniquement)")
+    data = await file.read()
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Fichier trop volumineux (5 Mo max)")
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[file.content_type]
+    safe_email = re.sub(r"[^a-z0-9]+", "-", user["email"].lower()).strip("-")
+    path = f"{APP_NAME}/avatars/{safe_email}/{uuid.uuid4()}.{ext}"
+    result = storage_put(path, data, file.content_type)
+    return {"path": result["path"], "url": f"/api/files/{result['path']}", "size": result["size"]}
+
+
+@api_router.get("/files/{path:path}")
+async def serve_file(path: str):
+    if not path.startswith(f"{APP_NAME}/"):
+        raise HTTPException(400, "Chemin invalide")
+    data, ct = storage_get(path)
+    return Response(content=data, media_type=ct)
+
+
+# ---------- QR code ----------
+@api_router.get("/profile/{slug}/qr.png")
+async def profile_qr(slug: str, request: Request):
+    order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Profil introuvable")
+    origin = request.headers.get("origin") or request.headers.get("referer") or str(request.base_url)
+    origin = origin.rstrip("/")
+    if origin.endswith("/api"):
+        origin = origin[:-4]
+    url = f"{origin}/p/{slug}"
+    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=12, border=2)
+    qr.add_data(url); qr.make(fit=True)
+    img = qr.make_image(fill_color="#0B0F17", back_color="#FFFFFF")
+    buf = io.BytesIO(); img.save(buf, format="PNG"); buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="image/png",
+        headers={"Content-Disposition": f'inline; filename="kallitag-{slug}.png"'},
+    )
+
+
+# ---------- Scan analytics ----------
+class ScanEvent(BaseModel):
+    referrer: Optional[str] = ""
+    user_agent: Optional[str] = ""
+
+
+@api_router.post("/profile/{slug}/scan")
+async def track_scan(slug: str, evt: ScanEvent, request: Request):
+    order = orders_col.find_one({"profile_slug": slug}, {"_id": 0, "profile_slug": 1, "contact_email": 1})
+    if not order:
+        return {"status": "noop"}
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = (fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "")) or ""
+    scans_col.insert_one({
+        "profile_slug": slug,
+        "owner_email": (order.get("contact_email") or "").lower(),
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "hour": datetime.now(timezone.utc).hour,
+        "referrer": (evt.referrer or "")[:200],
+        "user_agent": (evt.user_agent or "")[:200],
+        "ip": ip,
+    })
+    return {"status": "ok"}
+
+
+@api_router.get("/me/analytics/{slug}")
+async def get_analytics(slug: str, user=Depends(get_current_user)):
+    order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Profil introuvable")
+    if (order.get("contact_email") or "").lower() != user["email"].lower():
+        raise HTTPException(403, "Non autorisé")
+    cur = scans_col.find({"profile_slug": slug}, {"_id": 0}).sort("ts", -1).limit(500)
+    scans = list(cur)
+    total = scans_col.count_documents({"profile_slug": slug})
+    now = datetime.now(timezone.utc)
+    last_7 = scans_col.count_documents({
+        "profile_slug": slug,
+        "ts": {"$gte": (now - timedelta(days=7)).isoformat()},
+    })
+    by_hour = [0] * 24
+    for s in scans:
+        try:
+            by_hour[int(s.get("hour", 0))] += 1
+        except Exception:
+            pass
+    return {"total": total, "last_7_days": last_7, "by_hour": by_hour, "recent": scans[:50]}
+
+
+
 app.include_router(api_router)
+
+
+@app.on_event("startup")
+async def _init_on_startup():
+    init_storage()
+
 
 app.add_middleware(
     CORSMiddleware,

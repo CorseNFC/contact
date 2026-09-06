@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ProfilePreview from "@/components/ProfilePreview";
-import { api } from "@/lib/api";
+import { api, trackScan } from "@/lib/api";
 
 // vCard v3 generator
 function buildVCard(p) {
@@ -33,6 +33,7 @@ export default function PublicProfile() {
     api.get(`/profile/${slug}`)
       .then((r) => setState({ status: "ok", ...r.data }))
       .catch(() => setState({ status: "notfound" }));
+    trackScan(slug).catch(() => {});
   }, [slug]);
 
   const downloadVCard = (p) => {

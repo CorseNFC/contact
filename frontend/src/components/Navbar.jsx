@@ -1,10 +1,13 @@
-import { Link, useLocation } from "react-router-dom";
-import { Menu } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Menu, LogIn, LayoutDashboard, LogOut } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Navbar() {
   const { pathname } = useLocation();
+  const nav = useNavigate();
   const [open, setOpen] = useState(false);
+  const { user, logout } = useAuth();
   const link = (to, label, testid) => (
     <Link
       to={to}
@@ -29,6 +32,20 @@ export default function Navbar() {
           <a href="#faq" className="text-sm font-medium text-slate-300 hover:text-white" data-testid="nav-faq">FAQ</a>
         </div>
         <div className="flex items-center gap-3">
+          {user ? (
+            <>
+              <Link to="/mon-profil" className="kt-btn-ghost text-sm hidden sm:inline-flex items-center gap-2" data-testid="nav-dashboard">
+                <LayoutDashboard size={14} /> Mon espace
+              </Link>
+              <button onClick={() => { logout(); nav("/"); }} className="text-slate-400 hover:text-white p-2" data-testid="nav-logout" title="Se déconnecter">
+                <LogOut size={16} />
+              </button>
+            </>
+          ) : (
+            <Link to="/connexion" className="text-sm text-slate-300 hover:text-white hidden sm:inline-flex items-center gap-1.5" data-testid="nav-login">
+              <LogIn size={14} /> Connexion
+            </Link>
+          )}
           <Link to="/configurateur" className="kt-btn-gold text-sm hidden sm:inline-flex" data-testid="nav-cta-order">
             Commander
           </Link>
@@ -40,7 +57,8 @@ export default function Navbar() {
       {open && (
         <div className="md:hidden border-t border-white/5 bg-slate-950/95 px-4 py-4 space-y-3">
           {link("/", "Accueil", "nav-home-mobile")}
-          <br />{link("/configurateur", "Configurer", "nav-configurator-mobile")}
+          <div />{link("/configurateur", "Configurer", "nav-configurator-mobile")}
+          <div />{user ? link("/mon-profil", "Mon espace", "nav-dashboard-mobile") : link("/connexion", "Connexion", "nav-login-mobile")}
         </div>
       )}
     </nav>

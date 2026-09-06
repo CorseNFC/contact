@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CheckCircle2, Loader2, ArrowLeft, Mail } from "lucide-react";
+import { CheckCircle2, Loader2, ArrowLeft, Mail, ExternalLink, Download, LayoutDashboard } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { getPaymentStatus, formatEUR } from "@/lib/api";
+import { getPaymentStatus, formatEUR, qrUrl, publicProfileUrl } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function Success() {
@@ -64,9 +64,33 @@ export default function Success() {
                   <div className="flex justify-between"><span className="text-slate-400">Montant</span><span className="font-display font-bold text-amber-400">{formatEUR(state.order.amount_cents)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-400">Confirmation</span><span className="inline-flex items-center gap-1"><Mail size={12} /> {state.order.contact_email}</span></div>
                 </div>
+                {state.order.profile_slug && (
+                  <div className="mt-5 border-t border-white/5 pt-4">
+                    <p className="eyebrow mb-2">Votre profil est en ligne</p>
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 flex items-center justify-between">
+                      <span className="font-mono text-xs text-amber-300 truncate">{publicProfileUrl(state.order.profile_slug)}</span>
+                      <a href={publicProfileUrl(state.order.profile_slug)} target="_blank" rel="noreferrer" className="text-amber-400 hover:text-amber-200 ml-2" data-testid="success-open-profile"><ExternalLink size={14} /></a>
+                    </div>
+                    <div className="mt-4 flex items-start gap-3">
+                      <div className="p-2 bg-white rounded-lg">
+                        <img src={qrUrl(state.order.profile_slug)} alt="QR" width={90} height={90} data-testid="success-qr" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-slate-300">QR sticker à télécharger</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">Utilisable partout : flyer, vitrine, signature email.</p>
+                        <a href={qrUrl(state.order.profile_slug)} download={`kallitag-${state.order.profile_slug}.png`} className="inline-flex items-center gap-1.5 mt-2 text-xs text-amber-400 hover:text-amber-200" data-testid="success-qr-download">
+                          <Download size={12} /> Télécharger le QR
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-            <Link to="/" className="kt-btn-ghost mt-8 inline-flex" data-testid="success-back-home"><ArrowLeft size={16} /> Retour à l'accueil</Link>
+            <div className="mt-8 flex justify-center gap-3 flex-wrap">
+              <Link to="/connexion" className="kt-btn-gold inline-flex" data-testid="success-goto-dashboard"><LayoutDashboard size={16} /> Accéder à mon espace</Link>
+              <Link to="/" className="kt-btn-ghost inline-flex" data-testid="success-back-home"><ArrowLeft size={16} /> Accueil</Link>
+            </div>
           </>
         )}
         {(state.status === "error" || state.status === "timeout") && (
