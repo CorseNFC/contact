@@ -12,11 +12,9 @@ export default function Footer() {
           <p className="text-sm text-slate-400 leading-relaxed">Cartes de visite NFC premium fabriquées en France. Profil à vie, mises à jour illimitées.</p>
         </div>
         <div>
-          <p className="eyebrow mb-3">Produits</p>
+          <p className="eyebrow mb-3">Produit</p>
           <ul className="space-y-2 text-sm text-slate-300">
-            <li><Link to="/configurateur?p=card_prestige" className="hover:text-amber-400">Carte NFC Prestige</Link></li>
-            <li><Link to="/configurateur?p=plaque_nfc" className="hover:text-amber-400">Plaque NFC</Link></li>
-            <li><Link to="/configurateur?p=medaillon_nfc" className="hover:text-amber-400">Médaillon NFC</Link></li>
+            <li><Link to="/configurateur" className="hover:text-amber-400">Carte NFC Prestige</Link></li>
           </ul>
         </div>
         <div>

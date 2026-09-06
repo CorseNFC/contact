@@ -48,7 +48,7 @@ def test_get_products(s):
     data = r.json()
     assert "products" in data and "finishes" in data and "themes" in data
     ids = {p["id"] for p in data["products"]}
-    assert ids == {"card_prestige", "plaque_nfc", "medaillon_nfc"}
+    assert ids == {"card_prestige"}
     for p in data["products"]:
         assert p["currency"] == "eur"
         assert isinstance(p["price_cents"], int) and p["price_cents"] > 0

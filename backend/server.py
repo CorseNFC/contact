@@ -275,7 +275,9 @@ async def root():
 
 @api_router.get("/products")
 async def get_products():
-    return {"products": list(PRODUCT_CATALOG.values()), "finishes": FINISHES, "themes": PROFILE_THEMES}
+    # Only Carte NFC Prestige is publicly available now — legacy kinds hidden
+    active_products = [p for p in PRODUCT_CATALOG.values() if p.get("id") == "card_prestige"]
+    return {"products": active_products, "finishes": FINISHES, "themes": PROFILE_THEMES}
 
 
 @api_router.get("/profile/{slug}")
