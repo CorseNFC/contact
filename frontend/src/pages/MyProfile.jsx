@@ -7,7 +7,7 @@ import Footer from "@/components/Footer";
 import ProfilePreview from "@/components/ProfilePreview";
 import DropZone from "@/components/DropZone";
 import { useAuth } from "@/context/AuthContext";
-import { updateProfile, uploadAvatar, getAnalytics, qrUrl, publicProfileUrl, API, getMyPro, proCheckout, proPortal, releaseCard, listLeads, leadsCsvUrl } from "@/lib/api";
+import { updateProfile, uploadAvatar, getAnalytics, qrUrl, publicProfileUrl, API, getMyPro, proCheckout, proPortal, releaseCard, listLeads, leadsCsvUrl, listVariants, addVariant, deleteVariant, activateVariant } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -26,6 +26,7 @@ export default function MyProfile() {
   const [pro, setPro] = useState({ active: false });
   const [transferCode, setTransferCode] = useState(null);
   const [leadsData, setLeadsData] = useState(null);
+  const [variants, setVariants] = useState([]);
   const [params] = useSearchParams();
 
   // Auto-trigger Pro upgrade if ?upgrade=monthly|yearly
@@ -52,6 +53,7 @@ export default function MyProfile() {
     if (o) setProfile(o.profile);
     getAnalytics(activeSlug).then(setAnalytics).catch(() => setAnalytics(null));
     listLeads(activeSlug).then(setLeadsData).catch(() => setLeadsData(null));
+    listVariants(activeSlug).then((r) => setVariants(r.variants || [])).catch(() => setVariants([]));
   }, [activeSlug]); // eslint-disable-line
 
   useEffect(() => { getMyPro().then(setPro).catch(() => {}); }, []);
@@ -330,6 +332,52 @@ export default function MyProfile() {
                   </>
                 ) : (
                   <p className="text-sm text-slate-500">Aucun lead pour l'instant. Vos contacts pourront vous laisser un message depuis votre page profil publique.</p>
+                )}
+              </div>
+
+              {/* Multi-profiles (Pro) */}
+              <div className="kt-card p-6" data-testid="section-variants">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="eyebrow flex items-center gap-2"><Crown size={13} className="text-amber-400" /> Mes profils enregistrés</p>
+                  {!pro.active && <span className="text-[10px] text-amber-400 border border-amber-500/40 rounded-full px-2 py-0.5">Pro</span>}
+                </div>
+                <p className="text-xs text-slate-500 mb-3">Gardez plusieurs versions (Perso / Pro / Event) et basculez d'un clic sur la même carte.</p>
+                {variants.length > 0 && (
+                  <div className="space-y-2 mb-3">
+                    {variants.map((v) => (
+                      <div key={v.id} className="rounded-lg border border-white/5 bg-slate-900/40 p-3 flex items-center justify-between" data-testid={`variant-${v.id}`}>
+                        <div>
+                          <p className="text-sm font-medium">{v.label}</p>
+                          <p className="text-[11px] text-slate-500">{v.profile?.first_name} {v.profile?.last_name} · {v.profile?.job_title || ""}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={async () => {
+                            try { const r = await activateVariant(activeSlug, v.id); setProfile(r.profile); await auth.refresh(); toast.success(`« ${v.label} » est maintenant actif`); }
+                            catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+                          }} className="text-xs px-3 py-1 rounded-full border border-amber-400/60 text-amber-300 hover:bg-amber-500/10" data-testid={`activate-${v.id}`}>Activer</button>
+                          <button onClick={async () => {
+                            if (!window.confirm(`Supprimer « ${v.label} » ?`)) return;
+                            try { const r = await deleteVariant(activeSlug, v.id); setVariants(r.variants); toast.success("Supprimé"); }
+                            catch { toast.error("Erreur"); }
+                          }} className="text-xs px-3 py-1 rounded-full border border-white/10 text-slate-400 hover:text-red-400" data-testid={`delete-variant-${v.id}`}>×</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {pro.active ? (
+                  <button onClick={async () => {
+                    const label = window.prompt("Nom de ce profil (ex : Pro, Perso, Event)", "Pro");
+                    if (!label) return;
+                    try { const r = await addVariant(activeSlug, label, profile); setVariants(r.variants); toast.success(`« ${label} » enregistré`); }
+                    catch (e) { toast.error(e.response?.data?.detail || "Erreur"); }
+                  }} className="kt-btn-ghost text-xs w-full justify-center" data-testid="btn-add-variant">
+                    + Enregistrer le profil courant comme variante
+                  </button>
+                ) : (
+                  <button onClick={() => upgrade("monthly")} className="kt-btn-gold text-xs w-full justify-center" data-testid="btn-variants-upgrade">
+                    Débloquer avec Pro
+                  </button>
                 )}
               </div>
 

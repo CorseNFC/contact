@@ -922,6 +922,65 @@ async def export_leads_csv(slug: str, user=Depends(get_current_user)):
     return Response(content=buf.getvalue(), media_type="text/csv",
                     headers={"Content-Disposition": f'attachment; filename="leads-{slug}.csv"'})
 
+# ---------- Multi-profils (Pro only) ----------
+class ProfileVariantIn(BaseModel):
+    label: str
+    profile: ProfileConfig
+
+
+def _find_owned_order(slug: str, email: str) -> Dict[str, Any]:
+    order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Profil introuvable")
+    if (order.get("contact_email") or "").lower() != email.lower():
+        raise HTTPException(403, "Non autorisé")
+    return order
+
+
+@api_router.get("/me/orders/{slug}/variants")
+async def list_variants(slug: str, user=Depends(get_current_user)):
+    order = _find_owned_order(slug, user["email"])
+    return {"variants": order.get("profile_variants") or [], "is_pro": user_is_pro(user["email"])}
+
+
+@api_router.post("/me/orders/{slug}/variants")
+async def add_variant(slug: str, v: ProfileVariantIn, user=Depends(get_current_user)):
+    order = _find_owned_order(slug, user["email"])
+    if not user_is_pro(user["email"]):
+        raise HTTPException(402, "Multi-profils réservé à KalliTag Pro")
+    variants = order.get("profile_variants") or []
+    if len(variants) >= 5:
+        raise HTTPException(400, "Maximum 5 profils par carte")
+    vid = str(uuid.uuid4())[:8]
+    variants.append({"id": vid, "label": v.label[:40] or "Sans nom", "profile": v.profile.model_dump()})
+    orders_col.update_one({"profile_slug": slug}, {"$set": {"profile_variants": variants,
+        "updated_at": datetime.now(timezone.utc).isoformat()}})
+    return {"id": vid, "variants": variants}
+
+
+@api_router.delete("/me/orders/{slug}/variants/{vid}")
+async def delete_variant(slug: str, vid: str, user=Depends(get_current_user)):
+    order = _find_owned_order(slug, user["email"])
+    variants = [x for x in (order.get("profile_variants") or []) if x.get("id") != vid]
+    orders_col.update_one({"profile_slug": slug}, {"$set": {"profile_variants": variants,
+        "updated_at": datetime.now(timezone.utc).isoformat()}})
+    return {"variants": variants}
+
+
+@api_router.post("/me/orders/{slug}/activate/{vid}")
+async def activate_variant(slug: str, vid: str, user=Depends(get_current_user)):
+    order = _find_owned_order(slug, user["email"])
+    if not user_is_pro(user["email"]):
+        raise HTTPException(402, "Multi-profils réservé à KalliTag Pro")
+    variants = order.get("profile_variants") or []
+    v = next((x for x in variants if x.get("id") == vid), None)
+    if not v:
+        raise HTTPException(404, "Variante introuvable")
+    orders_col.update_one({"profile_slug": slug}, {"$set": {"profile": v["profile"],
+        "active_variant_id": vid, "updated_at": datetime.now(timezone.utc).isoformat()}})
+    return {"status": "ok", "profile": v["profile"], "active_variant_id": vid}
+
+
 
 @api_router.get("/me/analytics/{slug}")
 async def get_analytics(slug: str, user=Depends(get_current_user)):

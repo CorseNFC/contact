@@ -31,6 +31,11 @@ export const submitLead = async (slug, lead) => (await api.post(`/profile/${slug
 export const listLeads = async (slug) => (await api.get(`/me/leads/${slug}`)).data;
 export const leadsCsvUrl = (slug) => `${API}/me/leads/${slug}/export.csv`;
 
+export const listVariants = async (slug) => (await api.get(`/me/orders/${slug}/variants`)).data;
+export const addVariant = async (slug, label, profile) => (await api.post(`/me/orders/${slug}/variants`, { label, profile })).data;
+export const deleteVariant = async (slug, vid) => (await api.delete(`/me/orders/${slug}/variants/${vid}`)).data;
+export const activateVariant = async (slug, vid) => (await api.post(`/me/orders/${slug}/activate/${vid}`)).data;
+
 export const requestMagicLink = async (email, origin_url) => (await api.post("/auth/request-link", { email, origin_url })).data;
 export const verifyMagicLink = async (token) => (await api.get("/auth/verify", { params: { token } })).data;
 export const getMe = async () => (await api.get("/me")).data;

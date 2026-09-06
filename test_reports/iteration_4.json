@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 4 (Multi-Profils Pro) fully verified. Backend: 47/47 pytest tests pass (40 previous + 7 new in test_iteration4.py) covering: GET/POST/DELETE /api/me/orders/{slug}/variants, POST /activate/{vid}, Pro gating (402 for non-Pro on add), Pro path full CRUD (Perso+Pro variants, activate copies to order.profile, public /profile/{slug} reflects the active variant), 5-variant cap (6th returns 400), delete removes from list, ownership guard (wrong/other-owner slug → 403/404), auth guard (no bearer → 401), and clean subscription seed/unseed. Frontend: /mon-profil section-variants renders btn-variants-upgrade for non-Pro and swaps to btn-add-variant + pro-badge after seeding an active subscription in Mongo. All seed data (sub_test_seed, sub_test_seed_ui) cleaned; user restored to non-Pro state; slug profile restored to original 'Sandro Santinacci' (was left as active 'Sandro Pro' variant after activate test).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration4.py",
+    "/app/test_reports/pytest/iteration4.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py now at ~1030 lines — split into routers (variants belongs in a subscriptions/pro router or a new profile router).",
+    "activate_variant does not gate on Pro after activation reversal: currently POST /activate is Pro-gated (good), but DELETE /variants is NOT Pro-gated. A user could drop back to non-Pro mid-cycle and still delete leftover variants — likely intentional but worth confirming product-side.",
+    "The 40-char label truncation in add_variant silently trims. Consider Pydantic max_length validation on ProfileVariantIn.label so client sees a 422, not silent trim.",
+    "Max-5 check happens AFTER Pro gate but the constant is inline — extract MAX_VARIANTS = 5 to a config constant for reuse in the frontend hint.",
+    "Frontend MyProfile uses window.prompt for label — poor UX + not testable via Playwright. Consider a small modal with an Input.",
+    "listVariants is fetched inside the same useEffect as analytics/leads; on initial load with no activeSlug it fires 3 concurrent requests once activeSlug lands. Fine for now but could batch.",
+    "No ordering guarantee returned in variants list (Mongo array order preserved — OK, but consider explicit created_at per variant for future sort/rename UX)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration4.py",
+    "/app/test_reports/pytest/iteration4.xml"
+  ],
+  "success_rate": {"backend": "100% (47/47 pytest)", "frontend": "100% (btn-variants-upgrade for non-Pro, btn-add-variant + pro-badge for Pro after Mongo seed)"},
+  "test_credentials": "JWT for sandrosantinacci7@gmail.com in /tmp/session_tok. Slug: sandro-santinacci-e2de7e (fetched dynamically via /api/me).",
+  "seed_data_creation": "Seeded/removed subscriptions_col docs {sub_test_seed, sub_test_seed_ui} for gated-endpoint testing. Both removed at end. Profile on slug restored to first_name='Sandro'/last_name='Santinacci' (was mutated by activate_variant test to 'Sandro Pro'). No stale data remains.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest: 47/47 pass. Fixture pattern: read JWT from /tmp/session_tok, GET /api/me to fetch a live slug (do NOT hard-code). To test Pro-gated endpoints, seed subscriptions_col with {email:<user>, status:'active', stripe_subscription_id:'sub_test_seed', ...} and DELETE at end. iteration4 slug fixture retries up to 20s to survive concurrent release/reclaim runs from iteration3 under xdist. Frontend testids added in this iteration: section-variants, btn-add-variant (Pro), btn-variants-upgrade (non-Pro), activate-{vid}, delete-variant-{vid}, variant-{vid}. Note: MyProfile uses window.prompt for the label — automation must page.on('dialog', ...) if simulating add-variant via UI.",
+  "rca of the issue": "N/A – no bugs found."
+}
