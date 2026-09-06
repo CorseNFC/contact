@@ -3,15 +3,18 @@ import { createContext, useContext, useState, useMemo } from "react";
 const ConfigContext = createContext(null);
 
 const initialProfile = {
-  template_id: "onyx",
+  theme_id: "onyx",
+  finish_id: "noir_mat",
   first_name: "",
   last_name: "",
   job_title: "",
   company: "",
+  tagline: "",
   phone: "",
   email: "",
+  avatar_url: "",
   logo_url: "",
-  links: { linkedin: "", instagram: "", whatsapp: "", website: "", calendly: "" },
+  links: { linkedin: "", instagram: "", whatsapp: "", website: "", calendly: "", tiktok: "", youtube: "" },
 };
 
 const initialShipping = {

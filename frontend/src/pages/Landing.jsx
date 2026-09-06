@@ -4,15 +4,18 @@ import { ArrowRight, Sparkles, Zap, Users, Shield, Download, Bell, Check, X, Sta
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CardPreview from "@/components/CardPreview";
+import ProfilePreview from "@/components/ProfilePreview";
 
 const previewProfile = {
-  template_id: "gold",
+  theme_id: "onyx",
   first_name: "Alexandre",
   last_name: "Moreau",
   job_title: "Fondateur",
   company: "Studio Noir",
+  tagline: "Créateur de marques inoubliables.",
   phone: "+33 6 12 34 56 78",
   email: "alex@studionoir.fr",
+  links: { linkedin: "https://linkedin.com/in/alexmoreau", instagram: "https://instagram.com/studionoir", website: "https://studionoir.fr", calendly: "https://calendly.com/alex" },
 };
 
 const pressLogos = ["Les Échos", "BFM Business", "Forbes FR", "French Tech", "Le Figaro"];
@@ -59,12 +62,13 @@ export default function Landing() {
               <Sparkles size={14} /> Carte + Profil à vie · Sans abonnement
             </span>
             <h1 className="mt-6 font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.05]">
-              La carte NFC premium <br />
-              qui signe vos deals <span className="gold-text">en 3 secondes</span>.
+              Une carte NFC sobre. <br />
+              Une <span className="gold-text">page profil qui vend</span> pour vous.
             </h1>
             <p className="mt-6 text-lg text-slate-300 max-w-xl leading-relaxed">
-              Une carte élégante en métal, un profil web à vie, zéro appli pour vos contacts.
-              Le tout inclus, une fois pour toutes. <span className="text-amber-400">Pro en option pour aller plus loin.</span>
+              Vous approchez votre carte d'un smartphone. Votre page profil s'ouvre : photo, poste,
+              boutons d'action rapide (appel, email, Instagram, WhatsApp, ajout au répertoire).
+              <span className="text-amber-400"> Modifiable à vie.</span> Zéro appli.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link to="/configurateur" className="kt-btn-gold" data-testid="hero-cta-order">
@@ -80,10 +84,13 @@ export default function Landing() {
           </div>
 
           <motion.div className="flex justify-center lg:justify-end" initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
-            <div className="relative">
-              <div className="absolute -inset-10 rounded-full bg-amber-500/10 blur-3xl" />
+            <div className="relative flex items-end gap-6">
+              <div className="absolute -inset-10 rounded-full bg-amber-500/10 blur-3xl -z-10" />
+              <div className="hidden md:block">
+                <CardPreview finishId="or_brosse" size="sm" />
+              </div>
               <div className="relative">
-                <CardPreview profile={previewProfile} size="lg" />
+                <ProfilePreview profile={previewProfile} />
               </div>
             </div>
           </motion.div>

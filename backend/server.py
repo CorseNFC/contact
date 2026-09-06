@@ -83,27 +83,37 @@ PRODUCT_CATALOG = {
     },
 }
 
-TEMPLATES = [
-    {"id": "onyx", "name": "Onyx Minimal", "accent": "#F8FAFC", "bg": "#0B0F17"},
-    {"id": "gold", "name": "Gold Executive", "accent": "#D4AF37", "bg": "#111111"},
-    {"id": "marble", "name": "Marble Elite", "accent": "#0B0F17", "bg": "#F1EBE0"},
-    {"id": "cyber", "name": "Cyber Slate", "accent": "#10B981", "bg": "#0F172A"},
-    {"id": "botanical", "name": "Botanical Sage", "accent": "#052e16", "bg": "#DCEFDF"},
-    {"id": "noir", "name": "Noir Intense", "accent": "#D4AF37", "bg": "#000000"},
+# Finitions physiques de la carte (aucune inscription — juste la texture + logo KalliTag discret).
+# La personnalisation se fait sur la page web profil, pas sur la carte.
+FINISHES = [
+    {"id": "noir_mat", "name": "Noir Mat", "desc": "Toucher soft-touch, sobre et absolu.", "swatch": "#0A0A0A"},
+    {"id": "metal_brosse", "name": "Métal Brossé", "desc": "Aluminium anodisé argenté, brossé fin.", "swatch": "#C0C6CC"},
+    {"id": "or_brosse", "name": "Or Brossé", "desc": "Or champagne brossé, chaleureux et discret.", "swatch": "#D4AF37"},
+]
+
+# Thèmes visuels de la page profil web (le vrai produit personnalisable)
+PROFILE_THEMES = [
+    {"id": "onyx", "name": "Onyx", "bg": "#0B0F17", "accent": "#D4AF37", "text": "#F8FAFC"},
+    {"id": "ivory", "name": "Ivoire", "bg": "#F7F3EC", "accent": "#0B0F17", "text": "#0B0F17"},
+    {"id": "midnight", "name": "Midnight", "bg": "#0F172A", "accent": "#10B981", "text": "#F8FAFC"},
+    {"id": "rose", "name": "Rose Nude", "bg": "#F5E6DE", "accent": "#8B3A2E", "text": "#2A1810"},
 ]
 
 
 # ---------- Models ----------
 class ProfileConfig(BaseModel):
-    template_id: str
+    theme_id: str = "onyx"
+    finish_id: str = "noir_mat"
     first_name: str
     last_name: str
     job_title: Optional[str] = ""
     company: Optional[str] = ""
+    tagline: Optional[str] = ""  # phrase d'accroche sur la page profil
     phone: Optional[str] = ""
     email: Optional[EmailStr] = None
+    avatar_url: Optional[str] = ""  # photo de profil (URL)
     logo_url: Optional[str] = ""
-    links: Dict[str, str] = Field(default_factory=dict)  # linkedin, whatsapp, instagram, website, calendly
+    links: Dict[str, str] = Field(default_factory=dict)  # linkedin, whatsapp, instagram, website, calendly, tiktok, youtube
 
     @field_validator("email", mode="before")
     @classmethod
@@ -131,6 +141,13 @@ class CheckoutRequest(BaseModel):
     origin_url: str
 
 
+def _slugify(s: str) -> str:
+    import re, unicodedata
+    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
+    s = re.sub(r"[^a-zA-Z0-9]+", "-", s).strip("-").lower()
+    return s or "profil"
+
+
 # ---------- Routes ----------
 @api_router.get("/")
 async def root():
@@ -139,7 +156,18 @@ async def root():
 
 @api_router.get("/products")
 async def get_products():
-    return {"products": list(PRODUCT_CATALOG.values()), "templates": TEMPLATES}
+    return {"products": list(PRODUCT_CATALOG.values()), "finishes": FINISHES, "themes": PROFILE_THEMES}
+
+
+@api_router.get("/profile/{slug}")
+async def get_public_profile(slug: str):
+    order = orders_col.find_one({"profile_slug": slug, "payment_status": "paid"}, {"_id": 0})
+    if not order:
+        # Preview mode: also allow drafts to be seen (dev-friendly), but not in prod ideally
+        order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    if not order:
+        raise HTTPException(404, "Profil introuvable")
+    return {"slug": slug, "profile": order.get("profile", {}), "product_name": order.get("product_name")}
 
 
 @api_router.get("/products/{product_id}")
@@ -162,8 +190,11 @@ async def create_checkout(req: CheckoutRequest):
     price = prices[0]
 
     order_id = str(uuid.uuid4())
+    base_slug = _slugify(f"{req.profile.first_name}-{req.profile.last_name}")
+    slug = f"{base_slug}-{order_id[:6]}"
     order_doc = {
         "order_id": order_id,
+        "profile_slug": slug,
         "product_id": req.product_id,
         "product_name": product["name"],
         "quantity": req.quantity,
@@ -400,7 +431,7 @@ async def _on_paid(order_id: str):
 <p>Produit : {escape(order.get('product_name',''))} × {order.get('quantity',1)} — <strong>{amount}</strong></p>
 <p>Client : {escape(name)} — {escape(order.get('contact_email',''))}</p>
 <p>Livraison : {escape(order.get('shipping',{}).get('line1',''))}, {escape(order.get('shipping',{}).get('postal_code',''))} {escape(order.get('shipping',{}).get('city',''))}</p>
-<p>Template : {escape(profile.get('template_id',''))}</p>
+<p>Finition : {escape(profile.get('finish_id',''))} · Thème profil : {escape(profile.get('theme_id',''))}</p>
 <p style="color:#64748B;font-size:12px">Notification admin — {escape(EMAIL_FROM_NAME)}</p>
 </td></tr></table>"""
     await send_email(to=ADMIN_EMAIL, subject=f"[ADMIN] Commande #{order_id[:8].upper()}", html=admin_html)

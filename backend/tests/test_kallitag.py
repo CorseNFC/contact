@@ -18,7 +18,8 @@ VALID_PAYLOAD = {
     "product_id": "card_prestige",
     "quantity": 1,
     "profile": {
-        "template_id": "onyx",
+        "theme_id": "onyx",
+        "finish_id": "noir_mat",
         "first_name": "Jean",
         "last_name": "Dupont",
         "job_title": "CEO",
@@ -45,14 +46,16 @@ def test_get_products(s):
     r = s.get(f"{API}/products")
     assert r.status_code == 200
     data = r.json()
-    assert "products" in data and "templates" in data
+    assert "products" in data and "finishes" in data and "themes" in data
     ids = {p["id"] for p in data["products"]}
     assert ids == {"card_prestige", "plaque_nfc", "medaillon_nfc"}
     for p in data["products"]:
         assert p["currency"] == "eur"
         assert isinstance(p["price_cents"], int) and p["price_cents"] > 0
-    tpl_ids = {t["id"] for t in data["templates"]}
-    assert tpl_ids == {"onyx", "gold", "marble", "cyber", "botanical", "noir"}
+    finish_ids = {f["id"] for f in data["finishes"]}
+    assert finish_ids == {"noir_mat", "metal_brosse", "or_brosse"}
+    theme_ids = {t["id"] for t in data["themes"]}
+    assert {"onyx", "ivory", "midnight", "rose"}.issubset(theme_ids)
 
 
 def test_get_product_by_id(s):

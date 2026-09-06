@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, Loader2 } from "lucide-react";
+import { ArrowRight, Check, Loader2, Smartphone, CreditCard as CardIcon } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CardPreview from "@/components/CardPreview";
+import ProfilePreview from "@/components/ProfilePreview";
 import { useConfig } from "@/context/ConfigContext";
 import { fetchProducts, startCheckout, formatEUR } from "@/lib/api";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ export default function Configurator() {
   const [params] = useSearchParams();
   const [data, setData] = useState(null);
   const [step, setStep] = useState(1);
+  const [previewMode, setPreviewMode] = useState("profile"); // 'profile' | 'card'
   const [submitting, setSubmitting] = useState(false);
   const cfg = useConfig();
 
@@ -65,24 +67,25 @@ export default function Configurator() {
       <div className="pt-24 pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <p className="eyebrow">Configurateur</p>
-          <h1 className="mt-2 font-display text-3xl lg:text-4xl font-bold tracking-tight">Créez votre carte en 3 étapes</h1>
+          <h1 className="mt-2 font-display text-3xl lg:text-4xl font-bold tracking-tight">Créez votre page profil KalliTag</h1>
+          <p className="mt-2 text-sm text-slate-400 max-w-2xl">La page web que vos contacts verront quand ils toucheront votre carte. Modifiable à vie depuis votre espace.</p>
           <div className="mt-6 flex items-center gap-2 text-xs">
             {[1, 2, 3].map((n) => (
               <div key={n} className={`flex items-center gap-2 ${n <= step ? "text-amber-400" : "text-slate-500"}`}>
                 <span className={`w-6 h-6 rounded-full grid place-items-center border ${n <= step ? "border-amber-400 bg-amber-500/10" : "border-slate-700"}`}>{n < step ? <Check size={12} /> : n}</span>
-                <span className="hidden sm:inline">{["Produit & design", "Vos infos", "Livraison & paiement"][n - 1]}</span>
+                <span className="hidden sm:inline">{["Produit & finition", "Votre page profil", "Livraison & paiement"][n - 1]}</span>
                 {n < 3 && <span className="w-6 sm:w-10 h-[1px] bg-slate-800 mx-1" />}
               </div>
             ))}
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[1fr_420px] gap-10">
+        <div className="grid lg:grid-cols-[1fr_440px] gap-10">
           <div>
             {step === 1 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8" data-testid="step-1">
                 <div>
-                  <h2 className="font-display font-semibold text-xl mb-4">1. Choisissez votre produit</h2>
+                  <h2 className="font-display font-semibold text-xl mb-4">1. Choisissez votre support NFC</h2>
                   <div className="grid sm:grid-cols-3 gap-4">
                     {data.products.map((p) => (
                       <button
@@ -100,17 +103,41 @@ export default function Configurator() {
                 </div>
 
                 <div>
-                  <h2 className="font-display font-semibold text-xl mb-4">2. Choisissez un template</h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {data.templates.map((t) => (
+                  <h2 className="font-display font-semibold text-xl mb-1">2. Choisissez la finition physique</h2>
+                  <p className="text-xs text-slate-400 mb-4">La carte est sobre — aucune inscription. La personnalisation se passe sur la page profil.</p>
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    {data.finishes.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => { cfg.updateProfile({ finish_id: f.id }); setPreviewMode("card"); }}
+                        data-testid={`finish-${f.id}`}
+                        className={`kt-card p-4 text-left transition ${cfg.profile.finish_id === f.id ? "border-amber-400/60 ring-1 ring-amber-500/30" : ""}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="w-10 h-10 rounded-lg border border-white/10" style={{ background: f.swatch }} />
+                          <div>
+                            <p className="text-sm font-medium">{f.name}</p>
+                            <p className="text-[11px] text-slate-500 leading-tight mt-0.5">{f.desc}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h2 className="font-display font-semibold text-xl mb-1">3. Thème de votre page profil</h2>
+                  <p className="text-xs text-slate-400 mb-4">Vous pourrez le modifier à tout moment depuis votre espace.</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {data.themes.map((t) => (
                       <button
                         key={t.id}
-                        onClick={() => cfg.updateProfile({ template_id: t.id })}
-                        data-testid={`template-${t.id}`}
-                        className={`kt-card p-4 text-left transition ${cfg.profile.template_id === t.id ? "border-amber-400/60 ring-1 ring-amber-500/30" : ""}`}
+                        onClick={() => { cfg.updateProfile({ theme_id: t.id }); setPreviewMode("profile"); }}
+                        data-testid={`theme-${t.id}`}
+                        className={`kt-card p-3 text-left transition ${cfg.profile.theme_id === t.id ? "border-amber-400/60 ring-1 ring-amber-500/30" : ""}`}
                       >
-                        <div className="h-16 rounded-md mb-2" style={{ background: t.bg, border: `1px solid ${t.accent}44` }}>
-                          <div className="h-full grid place-items-center text-xs font-display font-bold" style={{ color: t.accent }}>Aa</div>
+                        <div className="h-14 rounded-md mb-2 grid place-items-center" style={{ background: t.bg, border: `1px solid ${t.accent}44` }}>
+                          <span className="text-xs font-display font-bold" style={{ color: t.accent }}>Aa</span>
                         </div>
                         <p className="text-sm font-medium">{t.name}</p>
                       </button>
@@ -126,7 +153,10 @@ export default function Configurator() {
 
             {step === 2 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6" data-testid="step-2">
-                <h2 className="font-display font-semibold text-xl">Vos informations professionnelles</h2>
+                <div>
+                  <h2 className="font-display font-semibold text-xl">Vos informations</h2>
+                  <p className="text-xs text-slate-400 mt-1">Ces infos apparaissent sur votre page profil. Modifiables à vie.</p>
+                </div>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <Field label="Prénom *" testid="input-first-name" value={cfg.profile.first_name} onChange={(v) => cfg.updateProfile({ first_name: v })} />
                   <Field label="Nom *" testid="input-last-name" value={cfg.profile.last_name} onChange={(v) => cfg.updateProfile({ last_name: v })} />
@@ -135,13 +165,20 @@ export default function Configurator() {
                   <Field label="Téléphone" testid="input-phone" value={cfg.profile.phone} onChange={(v) => cfg.updateProfile({ phone: v })} />
                   <Field label="Email professionnel" testid="input-email" type="email" value={cfg.profile.email} onChange={(v) => cfg.updateProfile({ email: v })} />
                 </div>
+                <Field label="Phrase d'accroche (optionnel)" testid="input-tagline" value={cfg.profile.tagline} onChange={(v) => cfg.updateProfile({ tagline: v })} placeholder="Ex : Aide les indépendants à décrocher plus de clients." />
+                <Field label="URL de votre photo (optionnel)" testid="input-avatar" value={cfg.profile.avatar_url} onChange={(v) => cfg.updateProfile({ avatar_url: v })} placeholder="https://..." />
+
                 <div>
-                  <h3 className="eyebrow mb-3">Vos réseaux (optionnel)</h3>
+                  <h3 className="eyebrow mb-3">Boutons d'action rapide</h3>
+                  <p className="text-xs text-slate-500 mb-3">Chaque lien devient un bouton sur votre page — vos contacts vous joignent en 1 tap.</p>
                   <div className="grid sm:grid-cols-2 gap-4">
-                    <Field label="LinkedIn" testid="input-linkedin" value={cfg.profile.links.linkedin} onChange={(v) => cfg.updateLinks({ linkedin: v })} />
-                    <Field label="Instagram" testid="input-instagram" value={cfg.profile.links.instagram} onChange={(v) => cfg.updateLinks({ instagram: v })} />
-                    <Field label="Site web" testid="input-website" value={cfg.profile.links.website} onChange={(v) => cfg.updateLinks({ website: v })} />
-                    <Field label="Calendly" testid="input-calendly" value={cfg.profile.links.calendly} onChange={(v) => cfg.updateLinks({ calendly: v })} />
+                    <Field label="LinkedIn" testid="input-linkedin" value={cfg.profile.links.linkedin} onChange={(v) => cfg.updateLinks({ linkedin: v })} placeholder="https://linkedin.com/in/..." />
+                    <Field label="Instagram" testid="input-instagram" value={cfg.profile.links.instagram} onChange={(v) => cfg.updateLinks({ instagram: v })} placeholder="https://instagram.com/..." />
+                    <Field label="WhatsApp" testid="input-whatsapp" value={cfg.profile.links.whatsapp} onChange={(v) => cfg.updateLinks({ whatsapp: v })} placeholder="https://wa.me/33..." />
+                    <Field label="Site web" testid="input-website" value={cfg.profile.links.website} onChange={(v) => cfg.updateLinks({ website: v })} placeholder="https://..." />
+                    <Field label="Calendly" testid="input-calendly" value={cfg.profile.links.calendly} onChange={(v) => cfg.updateLinks({ calendly: v })} placeholder="https://calendly.com/..." />
+                    <Field label="TikTok" testid="input-tiktok" value={cfg.profile.links.tiktok} onChange={(v) => cfg.updateLinks({ tiktok: v })} placeholder="https://tiktok.com/@..." />
+                    <Field label="YouTube" testid="input-youtube" value={cfg.profile.links.youtube} onChange={(v) => cfg.updateLinks({ youtube: v })} placeholder="https://youtube.com/@..." />
                   </div>
                 </div>
                 <div className="flex justify-between">
@@ -181,13 +218,39 @@ export default function Configurator() {
             )}
           </div>
 
-          {/* Live preview */}
+          {/* LIVE PREVIEW — split between profile (star) and physical card */}
           <aside className="lg:sticky lg:top-24 h-fit" data-testid="live-preview">
-            <div className="kt-card p-6">
-              <p className="eyebrow mb-4">Aperçu en direct</p>
-              <div className="flex justify-center py-6"><CardPreview profile={cfg.profile} size="md" /></div>
-              <div className="mt-6 border-t border-white/5 pt-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-400">Produit</span><span className="font-medium">{product.name}</span></div>
+            <div className="kt-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <p className="eyebrow">Aperçu en direct</p>
+                <div className="inline-flex rounded-full border border-white/10 p-0.5 text-xs">
+                  <button
+                    onClick={() => setPreviewMode("profile")}
+                    data-testid="preview-mode-profile"
+                    className={`px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition ${previewMode === "profile" ? "bg-amber-500/20 text-amber-300" : "text-slate-400 hover:text-slate-200"}`}
+                  >
+                    <Smartphone size={13} /> Profil
+                  </button>
+                  <button
+                    onClick={() => setPreviewMode("card")}
+                    data-testid="preview-mode-card"
+                    className={`px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition ${previewMode === "card" ? "bg-amber-500/20 text-amber-300" : "text-slate-400 hover:text-slate-200"}`}
+                  >
+                    <CardIcon size={13} /> Carte
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-center py-4">
+                {previewMode === "profile"
+                  ? <ProfilePreview profile={cfg.profile} onAction={(k) => k === "vcard" && toast.info("Aperçu — vos contacts pourront télécharger la vCard depuis leur téléphone.")} />
+                  : <div className="pt-8"><CardPreview finishId={cfg.profile.finish_id} size="md" /></div>
+                }
+              </div>
+
+              <div className="mt-4 border-t border-white/5 pt-4 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-slate-400">Support NFC</span><span className="font-medium">{product.name}</span></div>
+                <div className="flex justify-between"><span className="text-slate-400">Finition</span><span className="font-medium">{data.finishes.find(f => f.id === cfg.profile.finish_id)?.name}</span></div>
                 <div className="flex justify-between"><span className="text-slate-400">Quantité</span>
                   <div className="flex items-center gap-2">
                     <button onClick={() => cfg.setQuantity(Math.max(1, cfg.quantity - 1))} className="w-6 h-6 rounded border border-white/10 hover:border-amber-400/60" data-testid="qty-minus">−</button>
@@ -210,13 +273,14 @@ export default function Configurator() {
   );
 }
 
-const Field = ({ label, value, onChange, type = "text", testid }) => (
+const Field = ({ label, value, onChange, type = "text", testid, placeholder }) => (
   <div>
     <Label className="text-xs text-slate-400 mb-1.5 block">{label}</Label>
     <Input
       type={type}
       value={value || ""}
       onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
       data-testid={testid}
       className="bg-slate-900/60 border-white/10 focus:border-amber-400/60 focus:ring-amber-400/20 text-slate-100"
     />
