@@ -57,12 +57,27 @@ SESSION_TTL = timedelta(days=30)
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
 
-# --- Object storage (Emergent) ---
+# --- Object storage (Emergent OR Cloudinary depending on env) ---
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
 STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 APP_NAME = os.environ.get("APP_NAME", "kallitag")
 _storage_key: Optional[str] = None
+
+# Cloudinary (used when CLOUDINARY_* env vars are set — for external hosting)
+CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME", "")
+CLOUDINARY_API_KEY = os.environ.get("CLOUDINARY_API_KEY", "")
+CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "")
+USE_CLOUDINARY = bool(CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET)
+if USE_CLOUDINARY:
+    import cloudinary
+    import cloudinary.uploader
+    cloudinary.config(cloud_name=CLOUDINARY_CLOUD_NAME, api_key=CLOUDINARY_API_KEY,
+                      api_secret=CLOUDINARY_API_SECRET, secure=True)
+
+# Resend direct API (used when RESEND_API_KEY set — otherwise falls back to Emergent proxy)
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM = os.environ.get("RESEND_FROM", "KalliTag <onboarding@resend.dev>")
 
 app = FastAPI(title="KalliTag API")
 api_router = APIRouter(prefix="/api")
@@ -255,6 +270,16 @@ def init_storage(force: bool = False) -> Optional[str]:
 
 
 def storage_put(path: str, data: bytes, content_type: str) -> Dict[str, Any]:
+    # Cloudinary path (preferred outside Emergent)
+    if USE_CLOUDINARY:
+        # Use the object path as public_id under a folder to keep organization
+        # path example: "kallitag/avatars/user/uuid.jpg" → public_id "kallitag/avatars/user/uuid"
+        public_id = path.rsplit(".", 1)[0]
+        result = cloudinary.uploader.upload(
+            data, public_id=public_id, resource_type="image", overwrite=True,
+        )
+        return {"path": path, "url": result["secure_url"], "size": result.get("bytes", len(data))}
+    # Emergent object storage
     key = init_storage()
     if not key:
         raise HTTPException(503, "Stockage indisponible")
@@ -263,7 +288,7 @@ def storage_put(path: str, data: bytes, content_type: str) -> Dict[str, Any]:
         headers={"X-Storage-Key": key, "Content-Type": content_type},
         data=data, timeout=120,
     )
-    if resp.status_code == 404:  # key may be stale
+    if resp.status_code == 404:
         key = init_storage(force=True)
         resp = requests.put(
             f"{STORAGE_URL}/objects/{path}",
@@ -275,6 +300,11 @@ def storage_put(path: str, data: bytes, content_type: str) -> Dict[str, Any]:
 
 
 def storage_get(path: str) -> tuple:
+    if USE_CLOUDINARY:
+        # With Cloudinary, /api/files/{path} is unused — the frontend gets the
+        # secure_url returned by storage_put directly. If someone hits this
+        # endpoint, redirect via 404 to force them to use the Cloudinary URL.
+        raise HTTPException(410, "Cloudinary sert les fichiers directement — utilisez l'URL retournée par /api/upload-avatar")
     key = init_storage()
     if not key:
         raise HTTPException(503, "Stockage indisponible")
@@ -668,10 +698,25 @@ def _assert_safe_email(subject: str, html: str) -> None:
 
 
 async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
+    _assert_safe_email(subject, html)
+    # Direct Resend (preferred outside Emergent)
+    if RESEND_API_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp = await client.post("https://api.resend.com/emails",
+                                         headers={"Authorization": f"Bearer {RESEND_API_KEY}",
+                                                  "Content-Type": "application/json"},
+                                         json={"from": RESEND_FROM, "to": [to],
+                                               "subject": subject, "html": html})
+            resp.raise_for_status()
+            return resp.json().get("id")
+        except Exception as e:
+            logger.error(f"resend send failed: {e}")
+            return None
+    # Emergent Resend proxy fallback
     if not EMAIL_KEY:
         logger.warning("EMERGENT_EMAIL_KEY missing — email skipped")
         return None
-    _assert_safe_email(subject, html)
     payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
     try:
         async with httpx.AsyncClient(timeout=30) as client:
