@@ -14,6 +14,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import MyProfile from "@/pages/MyProfile";
 import Reclaim from "@/pages/Reclaim";
 import Admin from "@/pages/Admin";
+import Entreprise from "@/pages/Entreprise";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/configurateur" element={<Configurator />} />
+            <Route path="/entreprise" element={<Entreprise />} />
             <Route path="/paiement/succes" element={<Success />} />
             <Route path="/paiement/annule" element={<Cancel />} />
             <Route path="/p/:slug" element={<PublicProfile />} />

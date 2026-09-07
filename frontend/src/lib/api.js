@@ -20,6 +20,9 @@ export const fetchProduct = async (id) => (await api.get(`/products/${id}`)).dat
 export const startCheckout = async (payload) => (await api.post("/checkout", payload)).data;
 export const getPaymentStatus = async (sessionId) => (await api.get(`/payments/status/${sessionId}`)).data;
 
+export const bulkPricing = async () => (await api.get("/bulk/pricing")).data;
+export const bulkCheckout = async (payload) => (await api.post("/bulk-checkout", payload)).data;
+
 export const proCheckout = async (plan, origin_url) => (await api.post("/pro/checkout", { plan, origin_url })).data;
 export const getMyPro = async () => (await api.get("/me/pro")).data;
 export const proPortal = async (return_url) => (await api.post("/pro/portal", { return_url })).data;

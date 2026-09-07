@@ -193,6 +193,22 @@ def _slugify(s: str) -> str:
     return s or "profil"
 
 
+# Bulk B2B pricing tiers (percentage discount by minimum quantity)
+BULK_TIERS = [
+    {"min": 50, "pct": 25, "label": "50+ cartes · −25%"},
+    {"min": 20, "pct": 20, "label": "20+ cartes · −20%"},
+    {"min": 10, "pct": 15, "label": "10+ cartes · −15%"},
+    {"min": 5,  "pct": 10, "label": "5+ cartes · −10%"},
+]
+
+
+def bulk_discount_pct(qty: int) -> int:
+    for t in BULK_TIERS:
+        if qty >= t["min"]:
+            return t["pct"]
+    return 0
+
+
 # ---------- Auth helpers ----------
 def make_session_token(email: str) -> str:
     now = datetime.now(timezone.utc)
@@ -286,14 +302,132 @@ async def get_products():
 async def get_public_profile(slug: str):
     order = orders_col.find_one({"profile_slug": slug, "payment_status": "paid"}, {"_id": 0})
     if not order:
-        # Preview mode: also allow drafts to be seen (dev-friendly), but not in prod ideally
         order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    if not order:
+        # Fall back to bulk order card lookup
+        order = orders_col.find_one({"profile_cards.slug": slug}, {"_id": 0})
+        if order:
+            card = next((c for c in (order.get("profile_cards") or []) if c.get("slug") == slug), None)
+            if card:
+                product = PRODUCT_CATALOG.get(order.get("product_id"), {})
+                return {"slug": slug, "profile": card.get("profile", {}),
+                        "product_name": order.get("product_name"),
+                        "product_id": order.get("product_id"),
+                        "product_kind": product.get("kind", "profile")}
     if not order:
         raise HTTPException(404, "Profil introuvable")
     product = PRODUCT_CATALOG.get(order.get("product_id"), {})
     return {"slug": slug, "profile": order.get("profile", {}),
             "product_name": order.get("product_name"), "product_id": order.get("product_id"),
             "product_kind": product.get("kind", "profile")}
+
+
+# ---------- Bulk B2B checkout ----------
+class BulkCard(BaseModel):
+    finish_id: str = "noir_mat"
+    theme_id: str = "onyx"
+    first_name: str
+    last_name: str
+    job_title: Optional[str] = ""
+    company: Optional[str] = ""
+    phone: Optional[str] = ""
+    email: Optional[EmailStr] = None
+    links: Dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _e2n(cls, v):
+        return None if v == "" or v is None else v
+
+
+class BulkCheckoutRequest(BaseModel):
+    company_name: str
+    cards: List[BulkCard]
+    shipping: ShippingAddress
+    contact_email: EmailStr
+    origin_url: str
+
+
+@api_router.get("/bulk/pricing")
+async def bulk_pricing():
+    base = PRODUCT_CATALOG["card_prestige"]["price_cents"]
+    return {"base_price_cents": base, "tiers": BULK_TIERS, "currency": "eur"}
+
+
+@api_router.post("/bulk-checkout")
+async def bulk_checkout(req: BulkCheckoutRequest):
+    if not req.cards:
+        raise HTTPException(400, "Au moins 1 carte requise")
+    if len(req.cards) > 200:
+        raise HTTPException(400, "Max 200 cartes par commande")
+    product = PRODUCT_CATALOG["card_prestige"]
+    base_price = product["price_cents"]
+    qty = len(req.cards)
+    pct = bulk_discount_pct(qty)
+    unit_price = int(round(base_price * (100 - pct) / 100))
+    total_cents = unit_price * qty
+    order_id = str(uuid.uuid4())
+    profile_cards = []
+    for c in req.cards:
+        card_slug = f"{_slugify(c.first_name + '-' + c.last_name)}-{order_id[:4]}-{uuid.uuid4().hex[:4]}"
+        profile_cards.append({
+            "slug": card_slug,
+            "profile": {
+                "theme_id": c.theme_id, "finish_id": c.finish_id,
+                "first_name": c.first_name, "last_name": c.last_name,
+                "job_title": c.job_title or "", "company": c.company or req.company_name,
+                "phone": c.phone or "", "email": c.email,
+                "links": c.links or {},
+            },
+        })
+    order_doc = {
+        "order_id": order_id,
+        "product_id": "card_prestige",
+        "product_name": f"Pack Entreprise · {qty} cartes",
+        "quantity": qty,
+        "amount_cents": total_cents,
+        "currency": "eur",
+        "profile_slug": profile_cards[0]["slug"],
+        "profile": profile_cards[0]["profile"],
+        "profile_cards": profile_cards,
+        "shipping": req.shipping.model_dump(),
+        "contact_email": req.contact_email,
+        "company_name": req.company_name,
+        "is_bulk": True,
+        "bulk_discount_pct": pct,
+        "status": "draft", "payment_status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    orders_col.insert_one(dict(order_doc))
+    session = stripe.checkout.Session.create(
+        line_items=[{
+            "price_data": {
+                "currency": "eur",
+                "product_data": {
+                    "name": f"KalliTag Pack Entreprise · {qty} cartes NFC",
+                    "description": f"{qty} cartes personnalisées" + (f" · remise {pct}%" if pct else ""),
+                },
+                "unit_amount": unit_price,
+            },
+            "quantity": qty,
+        }],
+        mode="payment",
+        success_url=f"{req.origin_url.rstrip('/')}/paiement/succes?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{req.origin_url.rstrip('/')}/paiement/annule",
+        customer_email=req.contact_email,
+        metadata={"order_id": order_id, "bulk": "true", "qty": str(qty)},
+        shipping_address_collection={"allowed_countries": ["FR", "BE", "LU", "CH", "MC"]},
+    )
+    payment_transactions.insert_one({
+        "session_id": session.id, "order_id": order_id, "amount": total_cents,
+        "currency": "eur", "status": "initiated", "payment_status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    })
+    orders_col.update_one({"order_id": order_id}, {"$set": {"session_id": session.id}})
+    return {"checkout_url": session.url, "session_id": session.id, "order_id": order_id,
+            "unit_price_cents": unit_price, "total_cents": total_cents, "discount_pct": pct}
 
 
 @api_router.get("/products/{product_id}")
