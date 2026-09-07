@@ -36,6 +36,20 @@ export const addVariant = async (slug, label, profile) => (await api.post(`/me/o
 export const deleteVariant = async (slug, vid) => (await api.delete(`/me/orders/${slug}/variants/${vid}`)).data;
 export const activateVariant = async (slug, vid) => (await api.post(`/me/orders/${slug}/activate/${vid}`)).data;
 
+// ---------- Admin ----------
+const ADMIN_KEY = "kt_admin_token";
+export const getAdminToken = () => localStorage.getItem(ADMIN_KEY);
+export const setAdminToken = (t) => localStorage.setItem(ADMIN_KEY, t);
+export const clearAdminToken = () => localStorage.removeItem(ADMIN_KEY);
+const adminHeaders = () => ({ "X-Admin-Token": getAdminToken() || "" });
+
+export const adminLogin = async (token) => (await api.post("/admin/login", { token })).data;
+export const adminStats = async () => (await api.get("/admin/stats", { headers: adminHeaders() })).data;
+export const adminOrders = async (status = "") => (await api.get(`/admin/orders${status ? `?status=${status}` : ""}`, { headers: adminHeaders() })).data;
+export const adminMarkShipped = async (orderId, note = "") => (await api.post(`/admin/orders/${orderId}/mark-shipped`, { note }, { headers: adminHeaders() })).data;
+export const adminUnship = async (orderId) => (await api.post(`/admin/orders/${orderId}/unship`, {}, { headers: adminHeaders() })).data;
+export const adminExportUrl = () => `${API}/admin/orders/export.csv`;
+
 export const requestMagicLink = async (email, origin_url) => (await api.post("/auth/request-link", { email, origin_url })).data;
 export const verifyMagicLink = async (token) => (await api.get("/auth/verify", { params: { token } })).data;
 export const getMe = async () => (await api.get("/me")).data;

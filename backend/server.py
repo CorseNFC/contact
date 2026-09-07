@@ -54,6 +54,8 @@ SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
 SESSION_ALGO = "HS256"
 MAGIC_LINK_TTL = timedelta(minutes=20)
 SESSION_TTL = timedelta(days=30)
+ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
 
 # --- Object storage (Emergent) ---
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
@@ -981,6 +983,110 @@ async def activate_variant(slug: str, vid: str, user=Depends(get_current_user)):
     orders_col.update_one({"profile_slug": slug}, {"$set": {"profile": v["profile"],
         "active_variant_id": vid, "updated_at": datetime.now(timezone.utc).isoformat()}})
     return {"status": "ok", "profile": v["profile"], "active_variant_id": vid}
+
+
+# ---------- Admin dashboard ----------
+async def require_admin(x_admin_token: Optional[str] = Header(None)):
+    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(401, "Admin token invalide")
+    return True
+
+
+@api_router.post("/admin/login")
+async def admin_login(payload: Dict[str, str]):
+    token = (payload or {}).get("token", "")
+    if not ADMIN_TOKEN or token != ADMIN_TOKEN:
+        raise HTTPException(401, "Token invalide")
+    return {"status": "ok"}
+
+
+@api_router.get("/admin/stats")
+async def admin_stats(admin=Depends(require_admin)):
+    paid = orders_col.count_documents({"payment_status": "paid"})
+    to_ship = orders_col.count_documents({"payment_status": "paid", "shipped": {"$ne": True}})
+    unclaimed = orders_col.count_documents({"status": "unclaimed"})
+    active_subs = subscriptions_col.count_documents({"status": {"$in": ["active", "trialing"]}})
+    revenue_cents = 0
+    for o in orders_col.find({"payment_status": "paid"}, {"amount_cents": 1, "_id": 0}):
+        revenue_cents += int(o.get("amount_cents") or 0)
+    total_scans = scans_col.estimated_document_count()
+    total_leads = leads_col.estimated_document_count()
+    return {
+        "paid_orders": paid, "to_ship": to_ship, "unclaimed": unclaimed,
+        "revenue_cents": revenue_cents, "active_subs": active_subs,
+        "total_scans": total_scans, "total_leads": total_leads,
+    }
+
+
+@api_router.get("/admin/orders")
+async def admin_list_orders(admin=Depends(require_admin), status: Optional[str] = None, limit: int = 200):
+    q = {}
+    if status == "paid":
+        q = {"payment_status": "paid"}
+    elif status == "to_ship":
+        q = {"payment_status": "paid", "shipped": {"$ne": True}}
+    elif status == "shipped":
+        q = {"shipped": True}
+    elif status == "pending":
+        q = {"payment_status": {"$ne": "paid"}}
+    orders = list(orders_col.find(q, {"_id": 0}).sort("created_at", -1).limit(max(1, min(limit, 500))))
+    base = PUBLIC_BASE_URL or ""
+    for o in orders:
+        slug = o.get("profile_slug")
+        o["nfc_url"] = f"{base}/p/{slug}" if slug else ""
+    return {"orders": orders, "count": len(orders)}
+
+
+class AdminNoteIn(BaseModel):
+    note: str = ""
+
+
+@api_router.post("/admin/orders/{order_id}/mark-shipped")
+async def admin_mark_shipped(order_id: str, body: AdminNoteIn, admin=Depends(require_admin)):
+    r = orders_col.update_one({"order_id": order_id}, {"$set": {
+        "shipped": True,
+        "shipped_at": datetime.now(timezone.utc).isoformat(),
+        "admin_note": body.note[:500],
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }})
+    if r.matched_count == 0:
+        raise HTTPException(404, "Commande introuvable")
+    return {"status": "ok"}
+
+
+@api_router.post("/admin/orders/{order_id}/unship")
+async def admin_unship(order_id: str, admin=Depends(require_admin)):
+    r = orders_col.update_one({"order_id": order_id}, {"$set": {
+        "shipped": False, "updated_at": datetime.now(timezone.utc).isoformat(),
+    }, "$unset": {"shipped_at": ""}})
+    if r.matched_count == 0:
+        raise HTTPException(404, "Commande introuvable")
+    return {"status": "ok"}
+
+
+@api_router.get("/admin/orders/export.csv")
+async def admin_export_csv(x_admin_token: Optional[str] = Header(None)):
+    if not ADMIN_TOKEN or x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(401, "Admin token invalide")
+    orders = list(orders_col.find({"payment_status": "paid"}, {"_id": 0}).sort("created_at", -1))
+    import csv as _csv
+    buf = io.StringIO()
+    w = _csv.writer(buf)
+    w.writerow(["Date", "Order ID", "Slug", "Client", "Email", "Produit", "Finition", "Montant (EUR)",
+                "Statut", "Expédié", "URL NFC", "Adresse", "CP", "Ville", "Pays"])
+    base = PUBLIC_BASE_URL or ""
+    for o in orders:
+        prof = o.get("profile") or {}
+        ship = o.get("shipping") or {}
+        name = f"{prof.get('first_name','')} {prof.get('last_name','')}".strip()
+        nfc = f"{base}/p/{o.get('profile_slug','')}"
+        w.writerow([o.get("created_at",""), o.get("order_id",""), o.get("profile_slug",""),
+                    name, o.get("contact_email",""), o.get("product_name",""),
+                    prof.get("finish_id",""), f"{(o.get('amount_cents',0)/100):.2f}",
+                    o.get("status",""), "oui" if o.get("shipped") else "non", nfc,
+                    ship.get("line1",""), ship.get("postal_code",""), ship.get("city",""), ship.get("country","")])
+    return Response(content=buf.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": 'attachment; filename="kallitag-orders.csv"'})
 
 
 
