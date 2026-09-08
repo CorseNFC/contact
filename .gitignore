@@ -38,3 +38,9 @@ npm-debug.log
 # Emergent-specific
 /tmp/session_tok
 /tmp/nb_gen.log
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
