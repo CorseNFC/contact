@@ -863,7 +863,8 @@ async def upload_avatar(file: UploadFile = File(...), user=Depends(get_current_u
     safe_email = re.sub(r"[^a-z0-9]+", "-", user["email"].lower()).strip("-")
     path = f"{APP_NAME}/avatars/{safe_email}/{uuid.uuid4()}.{ext}"
     result = storage_put(path, data, file.content_type)
-    return {"path": result["path"], "url": f"/api/files/{result['path']}", "size": result["size"]}
+    url = result.get("url") if str(result.get("url", "")).startswith("http") else f"/api/files/{result['path']}"
+    return {"path": result["path"], "url": url, "size": result["size"]}
 
 
 @api_router.post("/upload-avatar-guest")
@@ -879,7 +880,8 @@ async def upload_avatar_guest(file: UploadFile = File(...)):
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     path = f"{APP_NAME}/guest/{day}/{uuid.uuid4()}.{ext}"
     result = storage_put(path, data, file.content_type)
-    return {"path": result["path"], "url": f"/api/files/{result['path']}", "size": result["size"]}
+    url = result.get("url") if str(result.get("url", "")).startswith("http") else f"/api/files/{result['path']}"
+    return {"path": result["path"], "url": url, "size": result["size"]}
 
 
 @api_router.get("/files/{path:path}")
