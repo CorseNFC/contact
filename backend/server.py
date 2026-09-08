@@ -779,29 +779,35 @@ class MagicLinkRequest(BaseModel):
 
 @api_router.post("/auth/request-link")
 async def request_magic_link(req: MagicLinkRequest):
-    token = secrets.token_urlsafe(32)
-    now = datetime.now(timezone.utc)
-    magic_tokens_col.insert_one({
-        "token": token,
-        "email": req.email.lower(),
-        "used": False,
-        "expires_at": (now + MAGIC_LINK_TTL).isoformat(),
-        "created_at": now.isoformat(),
-    })
-    origin = req.origin_url.rstrip("/")
-    if not origin.startswith("https://"):
-        raise HTTPException(400, "origin_url must be https")
-    link = f"{origin}/auth/callback?token={token}"
-    subject = f"Votre lien de connexion {EMAIL_FROM_NAME}"
-    html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
+    try:
+        origin = req.origin_url.rstrip("/")
+        if not origin.startswith("https://"):
+            raise HTTPException(400, "origin_url must be https")
+        token = secrets.token_urlsafe(32)
+        now = datetime.now(timezone.utc)
+        magic_tokens_col.insert_one({
+            "token": token,
+            "email": req.email.lower(),
+            "used": False,
+            "expires_at": (now + MAGIC_LINK_TTL).isoformat(),
+            "created_at": now.isoformat(),
+        })
+        link = f"{origin}/auth/callback?token={token}"
+        subject = f"Votre lien de connexion {EMAIL_FROM_NAME}"
+        html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
 <tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
 <h1 style="color:#D4AF37;margin:0 0 8px;font-size:22px">Se connecter à votre espace</h1>
 <p style="color:#94A3B8;margin:0 0 20px;font-size:14px">Cliquez sur le bouton ci-dessous pour accéder à votre profil KalliTag. Ce lien expire dans 20 minutes.</p>
 <p style="margin:24px 0"><a href="{escape(link)}" style="display:inline-block;padding:14px 28px;background:#D4AF37;color:#0B0F17;text-decoration:none;border-radius:9999px;font-weight:bold">Ouvrir mon espace</a></p>
 <p style="color:#64748B;font-size:12px;margin:24px 0 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">Si vous n'êtes pas à l'origine de cette demande, ignorez cet email. Envoyé par {escape(EMAIL_FROM_NAME)}. Nous ne demandons jamais votre mot de passe.</p>
 </td></tr></table>"""
-    email_id = await send_email(to=req.email, subject=subject, html=html)
-    return {"status": "sent", "email_id": email_id}
+        email_id = await send_email(to=req.email, subject=subject, html=html)
+        return {"status": "sent", "email_id": email_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"magic link request failed: {type(e).__name__}: {e}")
+        raise HTTPException(500, f"magic link failed: {type(e).__name__}: {str(e)[:200]}")
 
 
 @api_router.get("/auth/verify")
