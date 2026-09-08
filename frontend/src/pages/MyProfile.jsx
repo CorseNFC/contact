@@ -255,7 +255,8 @@ export default function MyProfile() {
                     testid="dash-avatar-drop"
                     onUpload={async (file) => {
                       const res = await uploadAvatar(file);
-                      updateField({ avatar_url: `${process.env.REACT_APP_BACKEND_URL}${res.url}` });
+                      const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
+                      updateField({ avatar_url: url });
                     }}
                     onClear={() => updateField({ avatar_url: "" })}
                     hint="Glissez-déposez ou cliquez · JPEG, PNG, WebP · 5 Mo max · pensez à enregistrer"

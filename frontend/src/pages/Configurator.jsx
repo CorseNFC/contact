@@ -185,7 +185,7 @@ export default function Configurator() {
                     <div>
                       <Label className="text-xs text-slate-400 mb-2 block">Photo de l'animal (optionnel)</Label>
                       <DropZone value={cfg.profile.avatar_url} testid="cfg-avatar-drop"
-                        onUpload={async (file) => { const res = await uploadAvatarGuest(file); cfg.updateProfile({ avatar_url: `${process.env.REACT_APP_BACKEND_URL}${res.url}` }); }}
+                        onUpload={async (file) => { const res = await uploadAvatarGuest(file); const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`; cfg.updateProfile({ avatar_url: url }); }}
                         onClear={() => cfg.updateProfile({ avatar_url: "" })} />
                     </div>
                     <div className="border-t border-white/5 pt-4">
@@ -232,7 +232,8 @@ export default function Configurator() {
                         testid="cfg-avatar-drop"
                         onUpload={async (file) => {
                           const res = await uploadAvatarGuest(file);
-                          cfg.updateProfile({ avatar_url: `${process.env.REACT_APP_BACKEND_URL}${res.url}` });
+                          const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
+                          cfg.updateProfile({ avatar_url: url });
                         }}
                         onClear={() => cfg.updateProfile({ avatar_url: "" })}
                       />

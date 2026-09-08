@@ -1,53 +1,85 @@
-# KalliTag — Product Requirement Document
+# KalliTag — Product Requirements Document
 
-## Original problem statement
-Site e-commerce NFC KalliTag. Refonte UX izitouch, monétisation freemium (carte + profil de base à vie gratuit + option KalliTag Pro 4,99€/mois ou 39€/an). 7 phases planifiées. FR only.
+## Statut Global
+**🟢 EN PRODUCTION** — déployé sur Vercel (frontend) + Railway (backend) + MongoDB Atlas — le 08/02/2026
 
-## Choix utilisateur (2026-02)
-- MVP = Phases 1–3 : Landing + Configurateur + Tunnel Stripe one-shot
-- Repartir sur le template `/app` (FastAPI + Mongo + React)
-- Resend managé par Emergent (emails transactionnels)
-- Stripe sandbox Emergent (Flow A)
-- Images produit générées via Gemini Nano Banana (reportées — Unsplash pour l'instant)
+- **Frontend prod** : https://frontend-azure-three-67.vercel.app
+- **Backend prod** : https://contact-production-3cd3.up.railway.app
+- **Repo GitHub** : CorseNFC/contact
+- **DB** : MongoDB Atlas cluster `kallitag.ynpw6pz.mongodb.net`
 
-## User personas
-- **Indépendant / freelance** — veut faire forte impression en RDV, capter des leads.
-- **Cadre commercial** — remplace les cartes papier périmées, met à jour son poste sans réimprimer.
-- **Entrepreneur DTC** — cherche un canal de contact durable, monétisation Pro plus tard.
+## Original Problem Statement
+KalliTag e-commerce NFC platform. React + FastAPI + MongoDB. Landing page, configurator, Stripe (one-shot + subscriptions), Magic Link auth, freemium (Pro unlocks analytics + multi-profiles), déploiement GitHub + Vercel/Railway.
 
-## Architecture
-- Frontend : React 19 (CRA + Craco) + Tailwind + shadcn/ui + framer-motion + lucide-react. Routes : `/`, `/configurateur`, `/paiement/succes`, `/paiement/annule`.
-- Backend : FastAPI + PyMongo. Endpoints `/api/products`, `/api/products/{id}`, `/api/checkout`, `/api/payments/status/{session_id}`, `/api/stripe/webhook`.
-- DB : Mongo — collections `orders`, `payment_transactions`.
-- Paiement : Stripe Checkout (Flow A sandbox claimable). Tax mode `calc_only` avec fallback `diy` si Stripe Tax indisponible.
-- Emails : Resend via Emergent proxy (client + admin, envoi sur webhook + fallback polling).
+## Architecture Production
+- **Frontend** : React (Vercel, framework CRA, root `frontend`, install `yarn install --frozen-lockfile`)
+- **Backend** : FastAPI Python 3.11.9 (Railway, `MISE_PYTHON_GITHUB_ATTESTATIONS=false`)
+- **DB** : MongoDB Atlas M0 (`kallitag`)
+- **Payments** : Stripe LIVE keys (webhook `whsec_...` configuré)
+- **Emails** : Resend (`re_gRJf...`)
+- **Storage** : Cloudinary
+- **Auth** : Magic link via Resend + JWT
 
-## Réalisé (2026-02-XX)
-- Landing haut de gamme : hero animé, comparaison papier/LinkedIn/KalliTag, 6 features, tarifs (gratuit à vie / Pro teaser), testimonials, FAQ.
-- Configurateur 3 étapes : produit + template (6 skins) + infos pro + livraison. Aperçu carte live (framer-motion).
-- Tunnel Stripe : création session avec metadata, redirection, page succès avec polling status, page annulé.
-- Webhook Stripe (`/api/stripe/webhook`) idempotent + fallback status inline.
-- Emails confirmation client + notification admin (Resend proxy, guardrails G1–G5).
-- Catalog Stripe seedé : 3 produits (39,90€ / 19,90€ / 14,90€ EUR) via `setup_stripe.py`.
-- Bugfix Pydantic : `ProfileConfig.email=""` → coercé en `None`.
+## Fonctionnalités livrées
+- [x] Landing page (design KalliTag, français, FR)
+- [x] Configurateur carte NFC Prestige (3 finitions : Noir/Métal/Or)
+- [x] Aperçu iPhone temps réel avec 4 thèmes profil
+- [x] Stripe checkout one-shot (39.90€/carte)
+- [x] Page `/entreprise` bulk B2B avec paliers de remise (5+/10+/20+/50+)
+- [x] Stripe Subscriptions Pro (mensuel 4.99€ + annuel 39€)
+- [x] Auth magic link (email lien 20min) → JWT 30j
+- [x] Page `/mon-profil` avec édition profil, upload photo Cloudinary, QR code
+- [x] Analytics scans (dashboard heures + 7 derniers jours) → **débloqué Pro**
+- [x] Multi-profiles Pro (transfert d'ownership carte)
+- [x] Admin dashboard `/admin` (orders, stats, mark shipped, NFC URL generation)
+- [x] CORS configuré pour Vercel + localhost
+- [x] Déploiement Railway + Vercel + Atlas
+- [x] Webhook Stripe configuré et fonctionnel
 
-## Backlog priorisé
-### P0 (prochaine itération)
-- Phase 4 : Abonnement KalliTag Pro (Stripe Subscriptions mensuel + annuel, magic link email, portail client Stripe).
-- Phase 5 : Dashboard utilisateur `/dashboard` (analytics scans, leads, multi-profils).
-- Mockups produits via Gemini Nano Banana (remplacer Unsplash).
+## Variables d'env Railway
+```
+MONGO_URL=mongodb+srv://sandrosantinacci7_db_user:***@kallitag.ynpw6pz.mongodb.net/?appName=kallitag
+DB_NAME=kallitag
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_yPoFyXz9aCIB3WqDFiNQHG8Voj6YyQDG
+RESEND_API_KEY=re_gRJf...
+RESEND_FROM="KalliTag <onboarding@resend.dev>"
+EMAIL_FROM_NAME=KalliTag
+CLOUDINARY_URL=cloudinary://...
+CORS_ORIGINS=https://frontend-azure-three-67.vercel.app,http://localhost:3000
+FRONTEND_URL=https://frontend-azure-three-67.vercel.app
+ADMIN_TOKEN=JYm-5t_6kI1_rpyz3RJPUNOYDrmclaQg
+ADMIN_EMAIL=sandrosantinacci7@gmail.com
+MISE_PYTHON_GITHUB_ATTESTATIONS=false
+```
 
-### P1
-- Phase 6 : Dashboard admin `/admin` (commandes, statut, export config, MRR).
-- Profil web NFC public : URL `kallitag.fr/{slug}` rendant la vCard.
-- Reset profil via code admin (edge case carte revendue).
-- Refund auto + email d'alerte si config perdue post-paiement (edge case tranché).
+## Variables Vercel
+```
+REACT_APP_BACKEND_URL=https://contact-production-3cd3.up.railway.app
+```
 
-### P2
-- Codes promo Stripe.
-- Sous-domaines perso `prenom.kallitag.fr` (Pro).
-- Webhook CRM (Pro).
-- Multilingue (reporté selon problem statement).
+## Backlog / Prochaines évolutions
 
-## Test credentials
-Voir `/app/memory/test_credentials.md`. Aucune auth en MVP. Carte test Stripe : `4242 4242 4242 4242`.
+### 🟡 P1 — À faire prochainement
+- **Rotation mot de passe MongoDB** : le password `10nMDtJ8jOesANoA` a été partagé en clair dans le chat le 08/02, à faire tourner sur MongoDB Atlas → Database Access → user → Autogenerate Password
+- **Domaine custom** : brancher `kallitag.fr` sur Vercel (frontend) + sous-domaine `api.kallitag.fr` sur Railway (backend), + mettre à jour `CORS_ORIGINS` et `FRONTEND_URL`
+- **Admin bulk orders** : afficher les N URLs NFC individuelles pour les commandes B2B au lieu d'une seule dans le tableau `/admin`
+
+### 🟢 P2 — Nice to have
+- Test E2E full : achat carte live → email → magic link → édition profil → scan NFC → apparition dans admin
+- Rotation `STRIPE_WEBHOOK_SECRET` (a été partagé en clair)
+- Backup automatique MongoDB (Atlas propose des snapshots quotidiens sur M0+)
+- Rate limiting sur `/api/auth/request-link` (anti-spam magic link)
+- Migration progressive vers un vrai domaine `noreply@kallitag.fr` sur Resend (au lieu de `onboarding@resend.dev`)
+
+## Historique déploiement — 08/02/2026
+1. Push initial GitHub CorseNFC/contact ✅
+2. Config Railway → build initial échoué (dependency conflict google-api-core/pydantic/requests) → fix requirements.txt ✅
+3. Build Railway ✅ (URL: contact-production-3cd3.up.railway.app)
+4. Webhook Stripe créé & secret ajouté à Railway ✅
+5. Deploy Vercel échoué (peer deps date-fns) → fix `.npmrc legacy-peer-deps=true` + `vercel.json installCommand yarn` ✅
+6. Deploy Vercel ✅ (URL: frontend-azure-three-67.vercel.app)
+7. CORS bloque Vercel → ajout `CORS_ORIGINS` + `FRONTEND_URL` sur Railway ✅
+8. Magic link 500 → wrap try/except pour logging détaillé + fix MONGO_URL (bad auth) ✅
+9. Deploy Railway échoue (mise Python attestation) → `MISE_PYTHON_GITHUB_ATTESTATIONS=false` ✅
+10. **PROD OK** — magic link envoyé, Stripe live session créée, admin dashboard opérationnel ✅
