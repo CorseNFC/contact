@@ -807,7 +807,7 @@ async def request_magic_link(req: MagicLinkRequest):
         raise
     except Exception as e:
         logger.exception(f"magic link request failed: {type(e).__name__}: {e}")
-        raise HTTPException(500, f"magic link failed: {type(e).__name__}: {str(e)[:200]}")
+        raise HTTPException(500, "magic link failed")
 
 
 @api_router.get("/auth/verify")
