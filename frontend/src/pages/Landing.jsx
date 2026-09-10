@@ -49,7 +49,7 @@ const testimonials = [
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-[#FAF7F0] text-[#1F1B16]">
       <Navbar />
 
       {/* HERO */}
@@ -63,7 +63,7 @@ export default function Landing() {
               Une carte NFC sobre. <br />
               Une <span className="gold-text">page profil qui vend</span> pour vous.
             </h1>
-            <p className="mt-6 text-lg text-slate-300 max-w-xl leading-relaxed">
+            <p className="mt-6 text-lg text-[#4A3F2E] max-w-xl leading-relaxed">
               Vous approchez votre carte d'un smartphone. Votre page profil s'ouvre : photo, poste,
               boutons d'action rapide (appel, email, Instagram, WhatsApp, ajout au répertoire).
               <span className="text-amber-400"> Modifiable à vie.</span> Zéro appli.
@@ -74,7 +74,7 @@ export default function Landing() {
               </Link>
               <a href="#comment" className="kt-btn-ghost" data-testid="hero-cta-how">Comment ça marche</a>
             </div>
-            <div className="mt-8 flex items-center gap-6 text-xs text-slate-400">
+            <div className="mt-8 flex items-center gap-6 text-xs text-[#6B5F4E]">
               <div className="flex items-center gap-1.5"><ShieldCheck size={16} className="text-amber-400" /> Satisfait ou remboursé 30j</div>
               <div className="flex items-center gap-1.5"><Truck size={16} className="text-amber-400" /> Livraison offerte</div>
               <div className="flex items-center gap-1.5"><CreditCard size={16} className="text-amber-400" /> Stripe sécurisé</div>
@@ -107,7 +107,7 @@ export default function Landing() {
               <div key={s.n} className="kt-card p-8 fade-up" style={{ animationDelay: `${i * 120}ms` }} data-testid={`step-${s.n}`}>
                 <span className="font-mono text-sm text-amber-400">{s.n}</span>
                 <h3 className="mt-4 font-display font-semibold text-xl">{s.title}</h3>
-                <p className="mt-3 text-sm text-slate-400 leading-relaxed">{s.desc}</p>
+                <p className="mt-3 text-sm text-[#6B5F4E] leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>
@@ -115,7 +115,7 @@ export default function Landing() {
       </section>
 
       {/* COMPARISON */}
-      <section className="py-24 bg-slate-900/30 border-y border-white/5" data-testid="comparison-section">
+      <section className="py-24 bg-white/40 border-y border-[#1F1B16]/8" data-testid="comparison-section">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-14">
             <p className="eyebrow">Pourquoi KalliTag</p>
@@ -124,10 +124,10 @@ export default function Landing() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-white/10">
-                  <th className="text-left py-4 px-4 text-slate-400 font-medium">Critère</th>
-                  <th className="text-center py-4 px-4 text-slate-400 font-medium">Carte papier</th>
-                  <th className="text-center py-4 px-4 text-slate-400 font-medium">LinkedIn</th>
+                <tr className="border-b border-[#1F1B16]/12">
+                  <th className="text-left py-4 px-4 text-[#6B5F4E] font-medium">Critère</th>
+                  <th className="text-center py-4 px-4 text-[#6B5F4E] font-medium">Carte papier</th>
+                  <th className="text-center py-4 px-4 text-[#6B5F4E] font-medium">LinkedIn</th>
                   <th className="text-center py-4 px-4 text-amber-400 font-semibold">KalliTag</th>
                 </tr>
               </thead>
@@ -135,8 +135,8 @@ export default function Landing() {
                 {comparison.map((r, i) => (
                   <tr key={r.feature} className={i % 2 ? "bg-white/[0.02]" : ""} data-testid={`compare-row-${i}`}>
                     <td className="py-4 px-4 font-medium">{r.feature}</td>
-                    <td className="py-4 px-4 text-center text-slate-400"><span className="inline-flex items-center gap-2"><X size={14} className="text-slate-500" />{r.papier}</span></td>
-                    <td className="py-4 px-4 text-center text-slate-400">{r.linkedin}</td>
+                    <td className="py-4 px-4 text-center text-[#6B5F4E]"><span className="inline-flex items-center gap-2"><X size={14} className="text-[#8B7F6E]" />{r.papier}</span></td>
+                    <td className="py-4 px-4 text-center text-[#6B5F4E]">{r.linkedin}</td>
                     <td className="py-4 px-4 text-center text-amber-300 font-medium"><span className="inline-flex items-center gap-2"><Check size={14} className="text-emerald-400" />{r.kallitag}</span></td>
                   </tr>
                 ))}
@@ -160,7 +160,7 @@ export default function Landing() {
                   <f.icon size={20} className="text-amber-400" />
                 </div>
                 <h3 className="mt-4 font-display font-semibold text-lg">{f.title}</h3>
-                <p className="mt-2 text-sm text-slate-400 leading-relaxed">{f.desc}</p>
+                <p className="mt-2 text-sm text-[#6B5F4E] leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -178,7 +178,7 @@ export default function Landing() {
             <div className="kt-card p-8" data-testid="plan-free">
               <p className="eyebrow">Inclus avec chaque carte</p>
               <h3 className="mt-2 font-display font-bold text-2xl">Gratuit à vie</h3>
-              <p className="mt-2 text-slate-400 text-sm">Une fois votre carte achetée, c'est à vous pour toujours.</p>
+              <p className="mt-2 text-[#6B5F4E] text-sm">Une fois votre carte achetée, c'est à vous pour toujours.</p>
               <ul className="mt-6 space-y-3 text-sm">
                 {["1 profil web NFC", "Nom, poste, téléphone, email", "Liens réseaux illimités", "QR code de secours", "Mises à jour illimitées"].map((x) => (
                   <li key={x} className="flex items-center gap-2"><Check size={16} className="text-emerald-400" />{x}</li>
@@ -189,7 +189,7 @@ export default function Landing() {
               <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-amber-500/20 blur-3xl" />
               <p className="eyebrow">KalliTag Pro</p>
               <h3 className="mt-2 font-display font-bold text-2xl">4,99 € /mois · 39 € /an</h3>
-              <p className="mt-2 text-slate-400 text-sm">Pour les pros qui veulent piloter finement leurs contacts.</p>
+              <p className="mt-2 text-[#6B5F4E] text-sm">Pour les pros qui veulent piloter finement leurs contacts.</p>
               <ul className="mt-6 space-y-3 text-sm">
                 {["Analytics scans (horaires, zones)", "Capture de leads illimitée", "Multi-profils (perso / pro / event)", "Thèmes premium + logo XL", "Export CSV & webhook CRM", "Sous-domaine prenom.kallitag.fr"].map((x) => (
                   <li key={x} className="flex items-center gap-2"><Check size={16} className="text-amber-400" />{x}</li>
@@ -203,7 +203,7 @@ export default function Landing() {
                   39 € / an (économisez 20€)
                 </a>
               </div>
-              <p className="mt-3 text-[11px] text-slate-500">Connexion requise avant paiement · Résiliable à tout moment</p>
+              <p className="mt-3 text-[11px] text-[#8B7F6E]">Connexion requise avant paiement · Résiliable à tout moment</p>
             </div>
           </div>
         </div>
@@ -220,8 +220,8 @@ export default function Landing() {
             {testimonials.map((t, i) => (
               <div key={t.name} className="kt-card p-6" data-testid={`testimonial-${i}`}>
                 <div className="flex gap-0.5 text-amber-400 mb-3">{Array.from({length: 5}).map((_, k) => <Star key={k} size={14} fill="currentColor" />)}</div>
-                <p className="text-slate-300 text-sm leading-relaxed">« {t.quote} »</p>
-                <p className="mt-4 text-xs text-slate-500">— {t.name}, {t.role}</p>
+                <p className="text-[#4A3F2E] text-sm leading-relaxed">« {t.quote} »</p>
+                <p className="mt-4 text-xs text-[#8B7F6E]">— {t.name}, {t.role}</p>
               </div>
             ))}
           </div>
@@ -229,7 +229,7 @@ export default function Landing() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="py-24 bg-slate-900/30 border-y border-white/5" data-testid="faq-section">
+      <section id="faq" className="py-24 bg-white/40 border-y border-[#1F1B16]/8" data-testid="faq-section">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <p className="eyebrow">FAQ</p>
@@ -247,7 +247,7 @@ export default function Landing() {
                 <summary className="cursor-pointer font-display font-semibold text-base flex items-center justify-between">
                   {q}<span className="text-amber-400 group-open:rotate-45 transition-transform">+</span>
                 </summary>
-                <p className="mt-3 text-sm text-slate-400 leading-relaxed">{a}</p>
+                <p className="mt-3 text-sm text-[#6B5F4E] leading-relaxed">{a}</p>
               </details>
             ))}
           </div>
@@ -258,7 +258,7 @@ export default function Landing() {
       <section className="py-24" data-testid="final-cta">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="font-display text-3xl lg:text-5xl font-extrabold tracking-tight">Prêt à faire <span className="gold-text">forte impression</span> ?</h2>
-          <p className="mt-4 text-slate-400 max-w-2xl mx-auto">Rejoignez les indépendants et entrepreneurs qui ne perdent plus jamais un contact.</p>
+          <p className="mt-4 text-[#6B5F4E] max-w-2xl mx-auto">Rejoignez les indépendants et entrepreneurs qui ne perdent plus jamais un contact.</p>
           <div className="mt-8">
             <Link to="/configurateur" className="kt-btn-gold" data-testid="final-cta-order">Configurer ma carte <ArrowRight size={18} /></Link>
           </div>

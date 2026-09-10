@@ -82,18 +82,18 @@ export default function MyProfile() {
     } catch { toast.error("Impossible de libérer cette carte"); }
   };
 
-  if (auth.loading) return <div className="min-h-screen grid place-items-center bg-slate-950"><Loader2 className="animate-spin text-amber-400" /></div>;
+  if (auth.loading) return <div className="min-h-screen grid place-items-center bg-[#FAF7F0]"><Loader2 className="animate-spin text-amber-400" /></div>;
   if (!auth.user) return <Navigate to="/connexion" replace />;
   if (!orders.length) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="min-h-screen bg-[#FAF7F0] text-[#1F1B16]">
         <Navbar />
         <div className="pt-32 pb-24 max-w-2xl mx-auto px-4 text-center">
           <p className="eyebrow">Espace client</p>
           <h1 className="mt-2 font-display text-3xl font-bold">Aucune commande active</h1>
-          <p className="mt-3 text-slate-400">Nous n'avons pas trouvé de commande payée pour <span className="text-amber-400">{auth.user.email}</span>. Passez commande pour créer votre profil.</p>
+          <p className="mt-3 text-[#6B5F4E]">Nous n'avons pas trouvé de commande payée pour <span className="text-amber-400">{auth.user.email}</span>. Passez commande pour créer votre profil.</p>
           <Link to="/configurateur" className="mt-6 inline-flex kt-btn-gold">Commander ma carte</Link>
-          <button onClick={auth.logout} className="mt-4 block mx-auto text-xs text-slate-500 hover:text-slate-300">Se déconnecter</button>
+          <button onClick={auth.logout} className="mt-4 block mx-auto text-xs text-[#8B7F6E] hover:text-[#4A3F2E]">Se déconnecter</button>
         </div>
         <Footer />
       </div>
@@ -124,7 +124,7 @@ export default function MyProfile() {
   const qr = qrUrl(activeSlug);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-[#FAF7F0] text-[#1F1B16]">
       <Navbar />
       <div className="pt-24 pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
@@ -138,7 +138,7 @@ export default function MyProfile() {
                 </span>
               )}
             </div>
-            <p className="mt-1 text-sm text-slate-400">Connecté en tant que <span className="text-amber-400">{auth.user.email}</span></p>
+            <p className="mt-1 text-sm text-[#6B5F4E]">Connecté en tant que <span className="text-amber-400">{auth.user.email}</span></p>
           </div>
           <div className="flex gap-2 flex-wrap">
             {pro.active ? (
@@ -170,7 +170,7 @@ export default function MyProfile() {
         {transferCode && (
           <div className="kt-card p-6 mb-6 border-emerald-500/40 bg-emerald-500/5" data-testid="transfer-code-box">
             <p className="eyebrow text-emerald-400">Code de transfert généré</p>
-            <p className="mt-2 text-sm text-slate-300">Partagez ce code au nouveau propriétaire. Il pourra reprendre la carte sur <span className="font-mono text-amber-300">/reclaim</span>.</p>
+            <p className="mt-2 text-sm text-[#4A3F2E]">Partagez ce code au nouveau propriétaire. Il pourra reprendre la carte sur <span className="font-mono text-amber-300">/reclaim</span>.</p>
             <p className="mt-4 font-mono text-3xl font-bold tracking-[0.3em] text-emerald-300 text-center">{transferCode}</p>
           </div>
         )}
@@ -182,7 +182,7 @@ export default function MyProfile() {
                 key={o.profile_slug}
                 onClick={() => setActiveSlug(o.profile_slug)}
                 data-testid={`profile-tab-${o.profile_slug}`}
-                className={`px-4 py-2 rounded-full text-xs font-medium border transition ${activeSlug === o.profile_slug ? "border-amber-400 bg-amber-500/10 text-amber-300" : "border-white/10 text-slate-400 hover:text-white"}`}
+                className={`px-4 py-2 rounded-full text-xs font-medium border transition ${activeSlug === o.profile_slug ? "border-amber-400 bg-amber-500/10 text-amber-300" : "border-[#1F1B16]/10 text-[#6B5F4E] hover:text-white"}`}
               >
                 {o.profile.first_name} {o.profile.last_name}
               </button>
@@ -196,20 +196,20 @@ export default function MyProfile() {
               {/* Public link + QR */}
               <div className="kt-card p-6" data-testid="section-links">
                 <p className="eyebrow mb-3">Votre lien public</p>
-                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm">
+                <div className="flex items-center gap-2 rounded-lg border border-[#1F1B16]/10 bg-white/70 px-3 py-2 text-sm">
                   <span className="font-mono truncate text-amber-300 flex-1" data-testid="public-url">{publicUrl}</span>
-                  <button onClick={copyLink} className="text-slate-400 hover:text-white" data-testid="copy-url">
+                  <button onClick={copyLink} className="text-[#6B5F4E] hover:text-white" data-testid="copy-url">
                     {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                   </button>
-                  <a href={publicUrl} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-white" data-testid="open-url"><ExternalLink size={14} /></a>
+                  <a href={publicUrl} target="_blank" rel="noreferrer" className="text-[#6B5F4E] hover:text-white" data-testid="open-url"><ExternalLink size={14} /></a>
                 </div>
                 <div className="mt-5 grid sm:grid-cols-[auto_1fr] gap-5 items-start">
                   <div className="p-3 bg-white rounded-xl inline-block">
                     <img src={qr} alt="QR" width={140} height={140} data-testid="qr-image" />
                   </div>
                   <div>
-                    <p className="text-sm text-slate-300">QR code sticker</p>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">Téléchargez-le pour l'imprimer sur un flyer, une devanture, ou l'ajouter à votre signature email — pointe vers votre profil.</p>
+                    <p className="text-sm text-[#4A3F2E]">QR code sticker</p>
+                    <p className="text-xs text-[#8B7F6E] mt-1 leading-relaxed">Téléchargez-le pour l'imprimer sur un flyer, une devanture, ou l'ajouter à votre signature email — pointe vers votre profil.</p>
                     <a href={qr} download={`kallitag-${activeSlug}.png`} className="kt-btn-ghost inline-flex items-center gap-2 mt-3 text-xs" data-testid="btn-qr-download">
                       <Download size={14} /> Télécharger le QR
                     </a>
@@ -229,7 +229,7 @@ export default function MyProfile() {
                 </div>
                 {analytics?.by_hour && (
                   <div className="mt-5">
-                    <p className="text-xs text-slate-400 mb-2">Répartition horaire</p>
+                    <p className="text-xs text-[#6B5F4E] mb-2">Répartition horaire</p>
                     <div className="flex items-end gap-0.5 h-20">
                       {analytics.by_hour.map((v, i) => {
                         const max = Math.max(1, ...analytics.by_hour);
@@ -238,10 +238,10 @@ export default function MyProfile() {
                         );
                       })}
                     </div>
-                    <div className="flex justify-between text-[10px] text-slate-500 mt-1"><span>00h</span><span>12h</span><span>23h</span></div>
+                    <div className="flex justify-between text-[10px] text-[#8B7F6E] mt-1"><span>00h</span><span>12h</span><span>23h</span></div>
                   </div>
                 )}
-                <p className="mt-4 text-[11px] text-slate-500">Analytics avancés (géolocalisation, capture de leads) débloqués avec <span className="text-amber-400">KalliTag Pro</span> — bientôt disponible.</p>
+                <p className="mt-4 text-[11px] text-[#8B7F6E]">Analytics avancés (géolocalisation, capture de leads) débloqués avec <span className="text-amber-400">KalliTag Pro</span> — bientôt disponible.</p>
               </div>
 
               {/* Editor */}
@@ -249,7 +249,7 @@ export default function MyProfile() {
                 <p className="eyebrow">Personnaliser mon profil</p>
 
                 <div>
-                  <Label className="text-xs text-slate-400 mb-2 block">Photo de profil</Label>
+                  <Label className="text-xs text-[#6B5F4E] mb-2 block">Photo de profil</Label>
                   <DropZone
                     value={profile.avatar_url}
                     testid="dash-avatar-drop"
@@ -274,16 +274,16 @@ export default function MyProfile() {
                 <Field label="Phrase d'accroche" testid="edit-tagline" value={profile.tagline} onChange={(v) => updateField({ tagline: v })} />
 
                 <div>
-                  <Label className="text-xs text-slate-400 mb-2 block">Thème</Label>
+                  <Label className="text-xs text-[#6B5F4E] mb-2 block">Thème</Label>
                   <div className="flex gap-2 flex-wrap">
                     {themes.map((t) => (
                       <button key={t.id} onClick={() => updateField({ theme_id: t.id })} data-testid={`edit-theme-${t.id}`}
-                        className={`px-3 py-1.5 rounded-full text-xs border ${profile.theme_id === t.id ? "border-amber-400 bg-amber-500/10 text-amber-300" : "border-white/10 text-slate-400 hover:text-white"}`}>{t.name}</button>
+                        className={`px-3 py-1.5 rounded-full text-xs border ${profile.theme_id === t.id ? "border-amber-400 bg-amber-500/10 text-amber-300" : "border-[#1F1B16]/10 text-[#6B5F4E] hover:text-white"}`}>{t.name}</button>
                     ))}
                   </div>
                 </div>
 
-                <div className="border-t border-white/5 pt-5">
+                <div className="border-t border-[#1F1B16]/8 pt-5">
                   <p className="eyebrow mb-3">Boutons d'action rapide</p>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <Field label="LinkedIn" testid="edit-linkedin" value={profile.links?.linkedin} onChange={(v) => updateLink({ linkedin: v })} />
@@ -313,26 +313,26 @@ export default function MyProfile() {
                 </div>
                 {leadsData?.total > 0 ? (
                   <>
-                    <p className="text-xs text-slate-400 mb-3">{leadsData.total} contact{leadsData.total > 1 ? "s" : ""} au total{!pro.active && ` — les 3 plus récents visibles`}</p>
+                    <p className="text-xs text-[#6B5F4E] mb-3">{leadsData.total} contact{leadsData.total > 1 ? "s" : ""} au total{!pro.active && ` — les 3 plus récents visibles`}</p>
                     <div className="space-y-2">
                       {(leadsData.leads || []).map((l, i) => (
-                        <div key={i} className="rounded-lg border border-white/5 bg-slate-900/40 p-3 text-sm">
-                          <div className="flex justify-between text-xs text-slate-500"><span>{new Date(l.created_at).toLocaleString("fr-FR")}</span></div>
-                          <p className="mt-1 font-medium text-slate-100">{l.name}</p>
-                          <p className="text-xs text-slate-400">{l.email || "—"} · {l.phone || "—"}</p>
-                          {l.message && <p className="mt-1 text-sm text-slate-300">{l.message}</p>}
+                        <div key={i} className="rounded-lg border border-[#1F1B16]/8 bg-white/60 p-3 text-sm">
+                          <div className="flex justify-between text-xs text-[#8B7F6E]"><span>{new Date(l.created_at).toLocaleString("fr-FR")}</span></div>
+                          <p className="mt-1 font-medium text-[#1F1B16]">{l.name}</p>
+                          <p className="text-xs text-[#6B5F4E]">{l.email || "—"} · {l.phone || "—"}</p>
+                          {l.message && <p className="mt-1 text-sm text-[#4A3F2E]">{l.message}</p>}
                         </div>
                       ))}
                     </div>
                     {!pro.active && leadsData.total > 3 && (
                       <div className="mt-4 text-center rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-                        <p className="text-xs text-slate-300">Passez Pro pour voir tous vos leads et exporter en CSV.</p>
+                        <p className="text-xs text-[#4A3F2E]">Passez Pro pour voir tous vos leads et exporter en CSV.</p>
                         <button onClick={() => upgrade("monthly")} className="kt-btn-gold text-xs mt-2" data-testid="leads-upgrade">Débloquer Pro</button>
                       </div>
                     )}
                   </>
                 ) : (
-                  <p className="text-sm text-slate-500">Aucun lead pour l'instant. Vos contacts pourront vous laisser un message depuis votre page profil publique.</p>
+                  <p className="text-sm text-[#8B7F6E]">Aucun lead pour l'instant. Vos contacts pourront vous laisser un message depuis votre page profil publique.</p>
                 )}
               </div>
 
@@ -342,14 +342,14 @@ export default function MyProfile() {
                   <p className="eyebrow flex items-center gap-2"><Crown size={13} className="text-amber-400" /> Mes profils enregistrés</p>
                   {!pro.active && <span className="text-[10px] text-amber-400 border border-amber-500/40 rounded-full px-2 py-0.5">Pro</span>}
                 </div>
-                <p className="text-xs text-slate-500 mb-3">Gardez plusieurs versions (Perso / Pro / Event) et basculez d'un clic sur la même carte.</p>
+                <p className="text-xs text-[#8B7F6E] mb-3">Gardez plusieurs versions (Perso / Pro / Event) et basculez d'un clic sur la même carte.</p>
                 {variants.length > 0 && (
                   <div className="space-y-2 mb-3">
                     {variants.map((v) => (
-                      <div key={v.id} className="rounded-lg border border-white/5 bg-slate-900/40 p-3 flex items-center justify-between" data-testid={`variant-${v.id}`}>
+                      <div key={v.id} className="rounded-lg border border-[#1F1B16]/8 bg-white/60 p-3 flex items-center justify-between" data-testid={`variant-${v.id}`}>
                         <div>
                           <p className="text-sm font-medium">{v.label}</p>
-                          <p className="text-[11px] text-slate-500">{v.profile?.first_name} {v.profile?.last_name} · {v.profile?.job_title || ""}</p>
+                          <p className="text-[11px] text-[#8B7F6E]">{v.profile?.first_name} {v.profile?.last_name} · {v.profile?.job_title || ""}</p>
                         </div>
                         <div className="flex gap-2">
                           <button onClick={async () => {
@@ -360,7 +360,7 @@ export default function MyProfile() {
                             if (!window.confirm(`Supprimer « ${v.label} » ?`)) return;
                             try { const r = await deleteVariant(activeSlug, v.id); setVariants(r.variants); toast.success("Supprimé"); }
                             catch { toast.error("Erreur"); }
-                          }} className="text-xs px-3 py-1 rounded-full border border-white/10 text-slate-400 hover:text-red-400" data-testid={`delete-variant-${v.id}`}>×</button>
+                          }} className="text-xs px-3 py-1 rounded-full border border-[#1F1B16]/10 text-[#6B5F4E] hover:text-red-400" data-testid={`delete-variant-${v.id}`}>×</button>
                         </div>
                       </div>
                     ))}
@@ -385,7 +385,7 @@ export default function MyProfile() {
               {/* Danger zone: release card */}
               <div className="kt-card p-6 border-red-500/20" data-testid="section-release">
                 <p className="eyebrow text-red-400">Céder cette carte</p>
-                <p className="mt-2 text-sm text-slate-400">Vous vendez ou donnez votre carte ? Générez un code de transfert unique. Le nouveau propriétaire l'utilisera sur <code className="text-amber-300">/reclaim</code> pour prendre la main. Vos infos actuelles seront effacées.</p>
+                <p className="mt-2 text-sm text-[#6B5F4E]">Vous vendez ou donnez votre carte ? Générez un code de transfert unique. Le nouveau propriétaire l'utilisera sur <code className="text-amber-300">/reclaim</code> pour prendre la main. Vos infos actuelles seront effacées.</p>
                 <button onClick={doRelease} className="mt-4 kt-btn-ghost text-xs inline-flex items-center gap-2" data-testid="btn-release-card">
                   <RefreshCw size={12} /> Générer un code de transfert
                 </button>
@@ -410,20 +410,20 @@ export default function MyProfile() {
 
 const Field = ({ label, value, onChange, type = "text", testid }) => (
   <div>
-    <Label className="text-xs text-slate-400 mb-1.5 block">{label}</Label>
+    <Label className="text-xs text-[#6B5F4E] mb-1.5 block">{label}</Label>
     <Input
       type={type}
       value={value || ""}
       onChange={(e) => onChange(e.target.value)}
       data-testid={testid}
-      className="bg-slate-900/60 border-white/10 focus:border-amber-400/60 focus:ring-amber-400/20 text-slate-100"
+      className="bg-white/70 border-[#1F1B16]/10 focus:border-amber-400/60 focus:ring-amber-400/20 text-[#1F1B16]"
     />
   </div>
 );
 
 const Stat = ({ label, value, testid }) => (
-  <div className="rounded-xl border border-white/5 bg-slate-900/40 p-4">
-    <p className="text-xs text-slate-400">{label}</p>
+  <div className="rounded-xl border border-[#1F1B16]/8 bg-white/60 p-4">
+    <p className="text-xs text-[#6B5F4E]">{label}</p>
     <p className="mt-1 font-display font-bold text-3xl gold-text" data-testid={testid}>{value}</p>
   </div>
 );

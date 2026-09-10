@@ -20,17 +20,17 @@ export default function AuthCallback() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 grid place-items-center px-4" data-testid="auth-callback">
+    <div className="min-h-screen bg-[#FAF7F0] grid place-items-center px-4" data-testid="auth-callback">
       {error ? (
         <div className="text-center max-w-sm">
-          <p className="font-display text-xl font-bold text-slate-100">Connexion impossible</p>
-          <p className="mt-2 text-sm text-slate-400">{error}</p>
+          <p className="font-display text-xl font-bold text-[#1F1B16]">Connexion impossible</p>
+          <p className="mt-2 text-sm text-[#6B5F4E]">{error}</p>
           <a href="/connexion" className="mt-6 inline-block kt-btn-ghost">Réessayer</a>
         </div>
       ) : (
         <div className="text-center">
           <Loader2 className="animate-spin text-amber-400 mx-auto" size={32} />
-          <p className="mt-4 text-slate-400 text-sm">Connexion en cours…</p>
+          <p className="mt-4 text-[#6B5F4E] text-sm">Connexion en cours…</p>
         </div>
       )}
     </div>

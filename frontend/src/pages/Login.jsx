@@ -30,12 +30,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-[#FAF7F0] text-[#1F1B16]">
       <Navbar />
       <div className="pt-32 pb-24 max-w-md mx-auto px-4" data-testid="login-page">
         <p className="eyebrow">Espace client</p>
         <h1 className="mt-2 font-display text-3xl lg:text-4xl font-bold tracking-tight">Connectez-vous</h1>
-        <p className="mt-3 text-sm text-slate-400">Entrez l'email utilisé lors de votre commande. Vous recevrez un lien de connexion sécurisé (pas de mot de passe).</p>
+        <p className="mt-3 text-sm text-[#6B5F4E]">Entrez l'email utilisé lors de votre commande. Vous recevrez un lien de connexion sécurisé (pas de mot de passe).</p>
 
         {sent ? (
           <div className="kt-card mt-8 p-8 text-center" data-testid="login-sent">
@@ -43,15 +43,15 @@ export default function Login() {
               <Mail className="text-amber-400" size={24} />
             </div>
             <h2 className="mt-4 font-display font-bold text-xl">Vérifiez vos emails</h2>
-            <p className="mt-2 text-sm text-slate-400">Un lien de connexion a été envoyé à <span className="text-amber-400">{email}</span>. Il expire dans 20 minutes.</p>
-            <button onClick={() => setSent(false)} className="mt-6 text-xs text-slate-500 hover:text-slate-300" data-testid="login-retry">
+            <p className="mt-2 text-sm text-[#6B5F4E]">Un lien de connexion a été envoyé à <span className="text-amber-400">{email}</span>. Il expire dans 20 minutes.</p>
+            <button onClick={() => setSent(false)} className="mt-6 text-xs text-slate-500 hover:text-[#4A3F2E]" data-testid="login-retry">
               Utiliser un autre email
             </button>
           </div>
         ) : (
           <form onSubmit={submit} className="kt-card mt-8 p-6 space-y-4">
             <div>
-              <Label className="text-xs text-slate-400 mb-1.5 block">Votre email</Label>
+              <Label className="text-xs text-[#6B5F4E] mb-1.5 block">Votre email</Label>
               <Input
                 type="email"
                 value={email}
@@ -60,7 +60,7 @@ export default function Login() {
                 autoFocus
                 data-testid="login-email"
                 placeholder="vous@exemple.com"
-                className="bg-slate-900/60 border-white/10 focus:border-amber-400/60 focus:ring-amber-400/20 text-slate-100"
+                className="bg-white/70 border-[#1F1B16]/10 focus:border-amber-400/60 focus:ring-amber-400/20 text-[#1F1B16]"
               />
             </div>
             <button type="submit" disabled={loading || !email} className="kt-btn-gold w-full justify-center" data-testid="login-submit">
