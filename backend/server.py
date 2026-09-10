@@ -152,10 +152,14 @@ class ProfileConfig(BaseModel):
     job_title: Optional[str] = ""
     company: Optional[str] = ""
     tagline: Optional[str] = ""
+    bio: Optional[str] = ""
     phone: Optional[str] = ""
     email: Optional[EmailStr] = None
     avatar_url: Optional[str] = ""
+    hero_photo_url: Optional[str] = ""
     logo_url: Optional[str] = ""
+    layout_id: Optional[str] = "hero"  # hero | classic | minimal
+    accent_color: Optional[str] = ""
     links: Dict[str, str] = Field(default_factory=dict)
     # Google reviews plaque fields
     business_name: Optional[str] = ""
@@ -448,6 +452,7 @@ async def bulk_checkout(req: BulkCheckoutRequest):
         customer_email=req.contact_email,
         metadata={"order_id": order_id, "bulk": "true", "qty": str(qty)},
         shipping_address_collection={"allowed_countries": ["FR", "BE", "LU", "CH", "MC"]},
+        allow_promotion_codes=True,
     )
     payment_transactions.insert_one({
         "session_id": session.id, "order_id": order_id, "amount": total_cents,
@@ -508,6 +513,7 @@ async def create_checkout(req: CheckoutRequest):
         customer_email=req.contact_email,
         metadata={"order_id": order_id, "product_id": req.product_id},
         shipping_address_collection={"allowed_countries": ["FR", "BE", "LU", "CH", "MC"]},
+        allow_promotion_codes=True,
     )
     # Physical goods in FR → OCS + Stripe Tax (calc_only). If Stripe Tax isn't
     # enabled on the sandbox, fall back to DIY so checkout still works.
@@ -964,6 +970,7 @@ async def pro_checkout(req: ProCheckoutRequest, user=Depends(get_current_user)):
         cancel_url=f"{req.origin_url.rstrip('/')}/tarifs?pro=cancel",
         metadata={"email": user["email"], "plan": req.plan},
         subscription_data={"metadata": {"email": user["email"], "plan": req.plan}},
+        allow_promotion_codes=True,
     )
     return {"checkout_url": session.url, "session_id": session.id}
 

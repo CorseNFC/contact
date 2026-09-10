@@ -34,7 +34,7 @@ export default function Configurator() {
   }, []);
 
   if (!data) {
-    return <div className="min-h-screen grid place-items-center bg-slate-950"><Loader2 className="animate-spin text-amber-400" /></div>;
+    return <div className="min-h-screen grid place-items-center bg-[#FAF7F0]"><Loader2 className="animate-spin text-amber-400" /></div>;
   }
 
   const product = data.products.find((p) => p.id === cfg.productId);
@@ -64,17 +64,17 @@ export default function Configurator() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-[#FAF7F0] text-[#1F1B16]">
       <Navbar />
       <div className="pt-24 pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <p className="eyebrow">Configurateur</p>
           <h1 className="mt-2 font-display text-3xl lg:text-4xl font-bold tracking-tight">Créez votre page profil KalliTag</h1>
-          <p className="mt-2 text-sm text-slate-400 max-w-2xl">La page web que vos contacts verront quand ils toucheront votre carte. Modifiable à vie depuis votre espace.</p>
+          <p className="mt-2 text-sm text-[#6B5F4E] max-w-2xl">La page web que vos contacts verront quand ils toucheront votre carte. Modifiable à vie depuis votre espace.</p>
           <div className="mt-6 flex items-center gap-2 text-xs">
             {[1, 2, 3].map((n) => (
-              <div key={n} className={`flex items-center gap-2 ${n <= step ? "text-amber-400" : "text-slate-500"}`}>
-                <span className={`w-6 h-6 rounded-full grid place-items-center border ${n <= step ? "border-amber-400 bg-amber-500/10" : "border-slate-700"}`}>{n < step ? <Check size={12} /> : n}</span>
+              <div key={n} className={`flex items-center gap-2 ${n <= step ? "text-amber-400" : "text-[#8B7F6E]"}`}>
+                <span className={`w-6 h-6 rounded-full grid place-items-center border ${n <= step ? "border-amber-400 bg-amber-500/10" : "border-slate-300"}`}>{n < step ? <Check size={12} /> : n}</span>
                 <span className="hidden sm:inline">{["Produit & finition", "Votre page profil", "Livraison & paiement"][n - 1]}</span>
                 {n < 3 && <span className="w-6 sm:w-10 h-[1px] bg-slate-800 mx-1" />}
               </div>
@@ -97,7 +97,7 @@ export default function Configurator() {
                         className={`kt-card p-5 text-left transition ${cfg.productId === p.id ? "border-amber-400/60 ring-1 ring-amber-500/30" : ""}`}
                       >
                         <p className="font-display font-semibold">{p.name}</p>
-                        <p className="text-xs text-slate-400 mt-1 min-h-[32px]">{p.tagline}</p>
+                        <p className="text-xs text-[#6B5F4E] mt-1 min-h-[32px]">{p.tagline}</p>
                         <p className="mt-3 text-amber-400 font-bold text-lg">{formatEUR(p.price_cents)}</p>
                       </button>
                     ))}
@@ -106,7 +106,7 @@ export default function Configurator() {
 
                 <div>
                   <h2 className="font-display font-semibold text-xl mb-1">2. Choisissez la finition physique</h2>
-                  <p className="text-xs text-slate-400 mb-4">La carte est sobre — aucune inscription. La personnalisation se passe sur la page profil.</p>
+                  <p className="text-xs text-[#6B5F4E] mb-4">La carte est sobre — aucune inscription. La personnalisation se passe sur la page profil.</p>
                   <div className="grid sm:grid-cols-3 gap-4">
                     {data.finishes.map((f) => {
                       const active = cfg.profile.finish_id === f.id;
@@ -122,7 +122,7 @@ export default function Configurator() {
                           </div>
                           <div className="mt-3">
                             <p className="text-sm font-semibold">{f.name}</p>
-                            <p className="text-[11px] text-slate-500 leading-snug mt-0.5">{f.desc}</p>
+                            <p className="text-[11px] text-[#8B7F6E] leading-snug mt-0.5">{f.desc}</p>
                           </div>
                         </button>
                       );
@@ -132,7 +132,7 @@ export default function Configurator() {
 
                 <div>
                   <h2 className="font-display font-semibold text-xl mb-1">3. Thème de votre page profil</h2>
-                  <p className="text-xs text-slate-400 mb-4">Vous pourrez le modifier à tout moment depuis votre espace.</p>
+                  <p className="text-xs text-[#6B5F4E] mb-4">Vous pourrez le modifier à tout moment depuis votre espace.</p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {data.themes.map((t) => (
                       <button
@@ -142,6 +142,28 @@ export default function Configurator() {
                         className="text-left"
                       >
                         <ThemeThumb themeId={t.id} label={t.name} active={cfg.profile.theme_id === t.id} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h2 className="font-display font-semibold text-xl mb-1">4. Layout de votre page profil</h2>
+                  <p className="text-xs text-[#6B5F4E] mb-4">Choisissez la mise en page — modifiable à tout moment.</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { id: "hero", name: "Hero", desc: "Photo plein cadre, moderne" },
+                      { id: "classic", name: "Classique", desc: "Portrait rond, élégant" },
+                      { id: "minimal", name: "Minimal", desc: "Épuré, grille d'actions" },
+                    ].map((l) => (
+                      <button
+                        key={l.id}
+                        onClick={() => cfg.updateProfile({ layout_id: l.id })}
+                        data-testid={`layout-${l.id}`}
+                        className={`kt-card p-4 text-left transition ${cfg.profile.layout_id === l.id ? "border-amber-500/60 ring-1 ring-amber-500/30" : ""}`}
+                      >
+                        <p className="text-sm font-semibold">{l.name}</p>
+                        <p className="text-[11px] text-[#8B7F6E] leading-snug mt-1">{l.desc}</p>
                       </button>
                     ))}
                   </div>
@@ -157,7 +179,7 @@ export default function Configurator() {
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6" data-testid="step-2">
                 <div>
                   <h2 className="font-display font-semibold text-xl">Vos informations</h2>
-                  <p className="text-xs text-slate-400 mt-1">{
+                  <p className="text-xs text-[#6B5F4E] mt-1">{
                     product.kind === "reviews" ? "Où envoyer les clients qui tapent votre plaque." :
                     product.kind === "pet" ? "Infos sur votre animal et vos coordonnées si perdu." :
                     "Ces infos apparaissent sur votre page profil. Modifiables à vie."
@@ -183,12 +205,12 @@ export default function Configurator() {
                       <Field label="N° de puce" testid="input-pet-chip" value={cfg.profile.chip_number} onChange={(v) => cfg.updateProfile({ chip_number: v })} />
                     </div>
                     <div>
-                      <Label className="text-xs text-slate-400 mb-2 block">Photo de l'animal (optionnel)</Label>
+                      <Label className="text-xs text-[#6B5F4E] mb-2 block">Photo de l'animal (optionnel)</Label>
                       <DropZone value={cfg.profile.avatar_url} testid="cfg-avatar-drop"
                         onUpload={async (file) => { const res = await uploadAvatarGuest(file); const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`; cfg.updateProfile({ avatar_url: url }); }}
                         onClear={() => cfg.updateProfile({ avatar_url: "" })} />
                     </div>
-                    <div className="border-t border-white/5 pt-4">
+                    <div className="border-t border-[#1F1B16]/8 pt-4">
                       <p className="eyebrow mb-3">Vos coordonnées (propriétaire)</p>
                       <div className="grid sm:grid-cols-2 gap-4">
                         <Field label="Nom propriétaire *" testid="input-owner-name" value={cfg.profile.owner_name} onChange={(v) => cfg.updateProfile({ owner_name: v })} />
@@ -197,17 +219,17 @@ export default function Configurator() {
                         <Field label="Vétérinaire" testid="input-vet" value={cfg.profile.vet_contact} onChange={(v) => cfg.updateProfile({ vet_contact: v })} />
                       </div>
                       <div className="mt-4">
-                        <Label className="text-xs text-slate-400 mb-1.5 block">Notes médicales (allergies, traitement…)</Label>
+                        <Label className="text-xs text-[#6B5F4E] mb-1.5 block">Notes médicales (allergies, traitement…)</Label>
                         <textarea value={cfg.profile.medical_notes || ""} onChange={(e) => cfg.updateProfile({ medical_notes: e.target.value })} rows={2}
                                   data-testid="input-medical-notes"
-                                  className="w-full px-3 py-2 rounded-md bg-slate-900/60 border border-white/10 text-slate-100 text-sm" />
+                                  className="w-full px-3 py-2 rounded-md bg-white/70 border border-[#1F1B16]/10 text-[#1F1B16] text-sm" />
                       </div>
                       <div className="mt-4">
-                        <Label className="text-xs text-slate-400 mb-1.5 block">Message si perdu(e)</Label>
+                        <Label className="text-xs text-[#6B5F4E] mb-1.5 block">Message si perdu(e)</Label>
                         <textarea value={cfg.profile.lost_message || ""} onChange={(e) => cfg.updateProfile({ lost_message: e.target.value })} rows={2}
                                   data-testid="input-lost-message"
                                   placeholder="Si vous m'avez trouvé, merci d'appeler mon humain. Récompense !"
-                                  className="w-full px-3 py-2 rounded-md bg-slate-900/60 border border-white/10 text-slate-100 text-sm" />
+                                  className="w-full px-3 py-2 rounded-md bg-white/70 border border-[#1F1B16]/10 text-[#1F1B16] text-sm" />
                       </div>
                     </div>
                   </>
@@ -226,7 +248,15 @@ export default function Configurator() {
                     <Field label="Phrase d'accroche (optionnel)" testid="input-tagline" value={cfg.profile.tagline} onChange={(v) => cfg.updateProfile({ tagline: v })} placeholder="Ex : Aide les indépendants à décrocher plus de clients." />
 
                     <div>
-                      <Label className="text-xs text-slate-400 mb-2 block">Photo de profil (optionnel)</Label>
+                      <Label className="text-xs text-[#6B5F4E] mb-1.5 block">Bio / À propos (optionnel)</Label>
+                      <textarea value={cfg.profile.bio || ""} onChange={(e) => cfg.updateProfile({ bio: e.target.value })} rows={3}
+                                data-testid="input-bio"
+                                placeholder="Un paragraphe pour vous présenter à vos contacts. Sera affiché dans la section À propos."
+                                className="w-full px-3 py-2 rounded-md bg-white/70 border border-[#1F1B16]/10 text-[#1F1B16] text-sm focus:border-amber-500/60 focus:outline-none" />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs text-[#6B5F4E] mb-2 block">Photo de profil (visage — apparaît en avatar rond)</Label>
                       <DropZone
                         value={cfg.profile.avatar_url}
                         testid="cfg-avatar-drop"
@@ -240,11 +270,44 @@ export default function Configurator() {
                     </div>
 
                     <div>
+                      <Label className="text-xs text-[#6B5F4E] mb-2 block">Photo hero portrait (optionnel — grand format, layout Hero uniquement)</Label>
+                      <DropZone
+                        value={cfg.profile.hero_photo_url}
+                        testid="cfg-hero-drop"
+                        label="Photo verticale plein cadre"
+                        hint="Format portrait recommandé · 5 Mo max"
+                        onUpload={async (file) => {
+                          const res = await uploadAvatarGuest(file);
+                          const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
+                          cfg.updateProfile({ hero_photo_url: url });
+                        }}
+                        onClear={() => cfg.updateProfile({ hero_photo_url: "" })}
+                      />
+                    </div>
+
+                    <div>
+                      <Label className="text-xs text-[#6B5F4E] mb-2 block">Logo entreprise (optionnel — affiché avec le nom de la société)</Label>
+                      <DropZone
+                        value={cfg.profile.logo_url}
+                        testid="cfg-logo-drop"
+                        label="Logo carré"
+                        hint="PNG transparent recommandé · 2 Mo max"
+                        onUpload={async (file) => {
+                          const res = await uploadAvatarGuest(file);
+                          const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
+                          cfg.updateProfile({ logo_url: url });
+                        }}
+                        onClear={() => cfg.updateProfile({ logo_url: "" })}
+                      />
+                    </div>
+
+                    <div>
                       <h3 className="eyebrow mb-3">Boutons d'action rapide</h3>
-                      <p className="text-xs text-slate-500 mb-3">Chaque lien devient un bouton sur votre page — vos contacts vous joignent en 1 tap.</p>
+                      <p className="text-xs text-[#8B7F6E] mb-3">Chaque lien devient un bouton coloré sur votre page — vos contacts vous joignent en 1 tap.</p>
                       <div className="grid sm:grid-cols-2 gap-4">
                         <Field label="LinkedIn" testid="input-linkedin" value={cfg.profile.links.linkedin} onChange={(v) => cfg.updateLinks({ linkedin: v })} placeholder="https://linkedin.com/in/..." />
                         <Field label="Instagram" testid="input-instagram" value={cfg.profile.links.instagram} onChange={(v) => cfg.updateLinks({ instagram: v })} placeholder="https://instagram.com/..." />
+                        <Field label="Facebook" testid="input-facebook" value={cfg.profile.links.facebook} onChange={(v) => cfg.updateLinks({ facebook: v })} placeholder="https://facebook.com/..." />
                         <Field label="WhatsApp" testid="input-whatsapp" value={cfg.profile.links.whatsapp} onChange={(v) => cfg.updateLinks({ whatsapp: v })} placeholder="https://wa.me/33..." />
                         <Field label="Site web" testid="input-website" value={cfg.profile.links.website} onChange={(v) => cfg.updateLinks({ website: v })} placeholder="https://..." />
                         <Field label="Calendly" testid="input-calendly" value={cfg.profile.links.calendly} onChange={(v) => cfg.updateLinks({ calendly: v })} placeholder="https://calendly.com/..." />
@@ -280,7 +343,7 @@ export default function Configurator() {
                   <Field label="Pays" testid="ship-country" value={cfg.shipping.country} onChange={(v) => cfg.updateShipping({ country: v })} />
                 </div>
                 <div className="kt-card p-5 bg-amber-500/5 border-amber-500/20">
-                  <p className="text-sm text-slate-300">Paiement 100% sécurisé via Stripe. Vous serez redirigé vers la page de paiement Stripe pour finaliser votre commande.</p>
+                  <p className="text-sm text-[#4A3F2E]">Paiement 100% sécurisé via Stripe. Vous serez redirigé vers la page de paiement Stripe pour finaliser votre commande.</p>
                 </div>
                 <div className="flex justify-between">
                   <Button onClick={() => setStep(2)} variant="ghost" className="kt-btn-ghost" data-testid="prev-step-2">Retour</Button>
@@ -302,18 +365,18 @@ export default function Configurator() {
             <div className="kt-card p-5">
               <div className="flex items-center justify-between mb-4">
                 <p className="eyebrow">Aperçu en direct</p>
-                <div className="inline-flex rounded-full border border-white/10 p-0.5 text-xs">
+                <div className="inline-flex rounded-full border border-[#1F1B16]/10 p-0.5 text-xs">
                   <button
                     onClick={() => setPreviewMode("profile")}
                     data-testid="preview-mode-profile"
-                    className={`px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition ${previewMode === "profile" ? "bg-amber-500/20 text-amber-300" : "text-slate-400 hover:text-slate-200"}`}
+                    className={`px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition ${previewMode === "profile" ? "bg-amber-500/20 text-amber-300" : "text-[#6B5F4E] hover:text-slate-200"}`}
                   >
                     <Smartphone size={13} /> Profil
                   </button>
                   <button
                     onClick={() => setPreviewMode("card")}
                     data-testid="preview-mode-card"
-                    className={`px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition ${previewMode === "card" ? "bg-amber-500/20 text-amber-300" : "text-slate-400 hover:text-slate-200"}`}
+                    className={`px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition ${previewMode === "card" ? "bg-amber-500/20 text-amber-300" : "text-[#6B5F4E] hover:text-slate-200"}`}
                   >
                     <CardIcon size={13} /> Carte
                   </button>
@@ -327,19 +390,19 @@ export default function Configurator() {
                 }
               </div>
 
-              <div className="mt-4 border-t border-white/5 pt-4 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-400">Support NFC</span><span className="font-medium">{product.name}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Finition</span><span className="font-medium">{data.finishes.find(f => f.id === cfg.profile.finish_id)?.name}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Quantité</span>
+              <div className="mt-4 border-t border-[#1F1B16]/8 pt-4 space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-[#6B5F4E]">Support NFC</span><span className="font-medium">{product.name}</span></div>
+                <div className="flex justify-between"><span className="text-[#6B5F4E]">Finition</span><span className="font-medium">{data.finishes.find(f => f.id === cfg.profile.finish_id)?.name}</span></div>
+                <div className="flex justify-between"><span className="text-[#6B5F4E]">Quantité</span>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => cfg.setQuantity(Math.max(1, cfg.quantity - 1))} className="w-6 h-6 rounded border border-white/10 hover:border-amber-400/60" data-testid="qty-minus">−</button>
+                    <button onClick={() => cfg.setQuantity(Math.max(1, cfg.quantity - 1))} className="w-6 h-6 rounded border border-[#1F1B16]/10 hover:border-amber-400/60" data-testid="qty-minus">−</button>
                     <span className="font-mono w-6 text-center" data-testid="qty-value">{cfg.quantity}</span>
-                    <button onClick={() => cfg.setQuantity(Math.min(10, cfg.quantity + 1))} className="w-6 h-6 rounded border border-white/10 hover:border-amber-400/60" data-testid="qty-plus">+</button>
+                    <button onClick={() => cfg.setQuantity(Math.min(10, cfg.quantity + 1))} className="w-6 h-6 rounded border border-[#1F1B16]/10 hover:border-amber-400/60" data-testid="qty-plus">+</button>
                   </div>
                 </div>
-                <div className="flex justify-between"><span className="text-slate-400">Livraison</span><span className="text-emerald-400">Offerte</span></div>
-                <div className="flex justify-between border-t border-white/5 pt-3 mt-3">
-                  <span className="text-slate-300 font-medium">Total</span>
+                <div className="flex justify-between"><span className="text-[#6B5F4E]">Livraison</span><span className="text-emerald-400">Offerte</span></div>
+                <div className="flex justify-between border-t border-[#1F1B16]/8 pt-3 mt-3">
+                  <span className="text-[#4A3F2E] font-medium">Total</span>
                   <span className="font-display font-bold text-lg gold-text" data-testid="total-price">{formatEUR(total)}</span>
                 </div>
               </div>
@@ -354,14 +417,14 @@ export default function Configurator() {
 
 const Field = ({ label, value, onChange, type = "text", testid, placeholder }) => (
   <div>
-    <Label className="text-xs text-slate-400 mb-1.5 block">{label}</Label>
+    <Label className="text-xs text-[#6B5F4E] mb-1.5 block">{label}</Label>
     <Input
       type={type}
       value={value || ""}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       data-testid={testid}
-      className="bg-slate-900/60 border-white/10 focus:border-amber-400/60 focus:ring-amber-400/20 text-slate-100"
+      className="bg-white/70 border-[#1F1B16]/10 focus:border-amber-400/60 focus:ring-amber-400/20 text-[#1F1B16]"
     />
   </div>
 );

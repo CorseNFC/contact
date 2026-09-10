@@ -36,14 +36,14 @@ export default function Success() {
   }, [sessionId]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen bg-[#FAF7F0] text-[#1F1B16]">
       <Navbar />
       <div className="pt-32 pb-24 max-w-2xl mx-auto px-4 text-center" data-testid="success-page">
         {state.status === "checking" && (
           <>
             <Loader2 className="animate-spin text-amber-400 mx-auto" size={40} />
             <h1 className="mt-6 font-display text-2xl font-bold">Confirmation du paiement…</h1>
-            <p className="mt-2 text-slate-400 text-sm">Cela prend habituellement quelques secondes.</p>
+            <p className="mt-2 text-[#6B5F4E] text-sm">Cela prend habituellement quelques secondes.</p>
           </>
         )}
         {state.status === "paid" && (
@@ -52,17 +52,17 @@ export default function Success() {
               <CheckCircle2 className="text-emerald-400" size={32} />
             </div>
             <h1 className="mt-6 font-display text-3xl lg:text-4xl font-bold tracking-tight">Merci pour votre commande !</h1>
-            <p className="mt-3 text-slate-400">Un email de confirmation vient d'être envoyé. Nous préparons votre carte et l'expédions sous 5 jours ouvrés.</p>
+            <p className="mt-3 text-[#6B5F4E]">Un email de confirmation vient d'être envoyé. Nous préparons votre carte et l'expédions sous 5 jours ouvrés.</p>
             {state.order && (
               <div className="kt-card mt-8 p-6 text-left" data-testid="order-recap">
                 <div className="flex justify-between items-baseline">
                   <p className="eyebrow">Récapitulatif</p>
-                  <span className="font-mono text-xs text-slate-500">#{state.order.order_id?.slice(0,8).toUpperCase()}</span>
+                  <span className="font-mono text-xs text-[#8B7F6E]">#{state.order.order_id?.slice(0,8).toUpperCase()}</span>
                 </div>
                 <div className="mt-4 space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-slate-400">Produit</span><span>{state.order.product_name} × {state.order.quantity}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Montant</span><span className="font-display font-bold text-amber-400">{formatEUR(state.order.amount_cents)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-400">Confirmation</span><span className="inline-flex items-center gap-1"><Mail size={12} /> {state.order.contact_email}</span></div>
+                  <div className="flex justify-between"><span className="text-[#6B5F4E]">Produit</span><span>{state.order.product_name} × {state.order.quantity}</span></div>
+                  <div className="flex justify-between"><span className="text-[#6B5F4E]">Montant</span><span className="font-display font-bold text-amber-400">{formatEUR(state.order.amount_cents)}</span></div>
+                  <div className="flex justify-between"><span className="text-[#6B5F4E]">Confirmation</span><span className="inline-flex items-center gap-1"><Mail size={12} /> {state.order.contact_email}</span></div>
                 </div>
                 {state.order.profile_slug && (
                   <div className="mt-5 border-t border-white/5 pt-4">
@@ -76,8 +76,8 @@ export default function Success() {
                         <img src={qrUrl(state.order.profile_slug)} alt="QR" width={90} height={90} data-testid="success-qr" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-xs text-slate-300">QR sticker à télécharger</p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">Utilisable partout : flyer, vitrine, signature email.</p>
+                        <p className="text-xs text-[#4A3F2E]">QR sticker à télécharger</p>
+                        <p className="text-[11px] text-[#8B7F6E] mt-0.5">Utilisable partout : flyer, vitrine, signature email.</p>
                         <a href={qrUrl(state.order.profile_slug)} download={`kallitag-${state.order.profile_slug}.png`} className="inline-flex items-center gap-1.5 mt-2 text-xs text-amber-400 hover:text-amber-200" data-testid="success-qr-download">
                           <Download size={12} /> Télécharger le QR
                         </a>
@@ -96,7 +96,7 @@ export default function Success() {
         {(state.status === "error" || state.status === "timeout") && (
           <>
             <h1 className="font-display text-2xl font-bold">Paiement en cours de traitement</h1>
-            <p className="mt-3 text-slate-400">Si votre paiement a été débité, un email vous confirmera la commande dans quelques minutes.</p>
+            <p className="mt-3 text-[#6B5F4E]">Si votre paiement a été débité, un email vous confirmera la commande dans quelques minutes.</p>
             <Link to="/" className="kt-btn-ghost mt-6 inline-flex">Retour</Link>
           </>
         )}

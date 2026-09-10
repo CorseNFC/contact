@@ -13,7 +13,7 @@ export default function Navbar() {
       to={to}
       onClick={() => setOpen(false)}
       data-testid={testid}
-      className={`text-sm font-medium transition-colors ${pathname === to ? "text-amber-400" : "text-slate-300 hover:text-white"}`}
+      className={`text-sm font-medium transition-colors ${pathname === to ? "text-amber-400" : "text-[#4A3F2E] hover:text-[#1F1B16]"}`}
     >
       {label}
     </Link>
@@ -29,8 +29,8 @@ export default function Navbar() {
           {link("/", "Accueil", "nav-home")}
           {link("/configurateur", "Configurer", "nav-configurator")}
           {link("/entreprise", "Entreprise", "nav-entreprise")}
-          <a href="/#tarifs" className="text-sm font-medium text-slate-300 hover:text-white" data-testid="nav-pricing">Tarifs</a>
-          <a href="/#faq" className="text-sm font-medium text-slate-300 hover:text-white" data-testid="nav-faq">FAQ</a>
+          <a href="/#tarifs" className="text-sm font-medium text-[#4A3F2E] hover:text-[#1F1B16]" data-testid="nav-pricing">Tarifs</a>
+          <a href="/#faq" className="text-sm font-medium text-[#4A3F2E] hover:text-[#1F1B16]" data-testid="nav-faq">FAQ</a>
         </div>
         <div className="flex items-center gap-3">
           {user ? (
@@ -38,25 +38,25 @@ export default function Navbar() {
               <Link to="/mon-profil" className="kt-btn-ghost text-sm hidden sm:inline-flex items-center gap-2" data-testid="nav-dashboard">
                 <LayoutDashboard size={14} /> Mon espace
               </Link>
-              <button onClick={() => { logout(); nav("/"); }} className="text-slate-400 hover:text-white p-2" data-testid="nav-logout" title="Se déconnecter">
+              <button onClick={() => { logout(); nav("/"); }} className="text-[#6B5F4E] hover:text-[#1F1B16] p-2" data-testid="nav-logout" title="Se déconnecter">
                 <LogOut size={16} />
               </button>
             </>
           ) : (
-            <Link to="/connexion" className="text-sm text-slate-300 hover:text-white hidden sm:inline-flex items-center gap-1.5" data-testid="nav-login">
+            <Link to="/connexion" className="text-sm text-[#4A3F2E] hover:text-[#1F1B16] hidden sm:inline-flex items-center gap-1.5" data-testid="nav-login">
               <LogIn size={14} /> Connexion
             </Link>
           )}
           <Link to="/configurateur" className="kt-btn-gold text-sm hidden sm:inline-flex" data-testid="nav-cta-order">
             Commander
           </Link>
-          <button className="md:hidden text-slate-200" onClick={() => setOpen(!open)} data-testid="nav-menu-toggle" aria-label="menu">
+          <button className="md:hidden text-[#1F1B16]" onClick={() => setOpen(!open)} data-testid="nav-menu-toggle" aria-label="menu">
             <Menu size={22} />
           </button>
         </div>
       </div>
       {open && (
-        <div className="md:hidden border-t border-white/5 bg-slate-950/95 px-4 py-4 space-y-3">
+        <div className="md:hidden border-t border-[#1F1B16]/8 bg-[#FAF7F0]/95 px-4 py-4 space-y-3">
           {link("/", "Accueil", "nav-home-mobile")}
           <div />{link("/configurateur", "Configurer", "nav-configurator-mobile")}
           <div />{user ? link("/mon-profil", "Mon espace", "nav-dashboard-mobile") : link("/connexion", "Connexion", "nav-login-mobile")}

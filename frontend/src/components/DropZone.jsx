@@ -46,7 +46,7 @@ export default function DropZone({ value, onUpload, onClear, label = "Glissez vo
   if (value) {
     return (
       <div className="flex items-center gap-4" data-testid={`${testid}-filled`}>
-        <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-amber-400/50 bg-slate-900">
+        <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-amber-400/50 bg-white">
           <img src={value} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
         </div>
         <div className="flex flex-col gap-2">
@@ -54,7 +54,7 @@ export default function DropZone({ value, onUpload, onClear, label = "Glissez vo
             {uploading ? <Loader2 className="animate-spin" size={14} /> : <Upload size={14} />} Remplacer
           </button>
           {onClear && (
-            <button type="button" onClick={onClear} className="text-xs text-slate-500 hover:text-red-400 inline-flex items-center gap-1.5" data-testid={`${testid}-clear`}>
+            <button type="button" onClick={onClear} className="text-xs text-[#8B7F6E] hover:text-red-600 inline-flex items-center gap-1.5" data-testid={`${testid}-clear`}>
               <X size={12} /> Retirer la photo
             </button>
           )}
@@ -74,16 +74,16 @@ export default function DropZone({ value, onUpload, onClear, label = "Glissez vo
       role="button"
       tabIndex={0}
       data-testid={testid}
-      className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition ${dragging ? "border-amber-400 bg-amber-500/10" : "border-white/10 hover:border-amber-400/50 hover:bg-white/[0.02]"}`}
+      className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-6 text-center transition ${dragging ? "border-amber-500 bg-amber-500/10" : "border-[#1F1B16]/15 hover:border-amber-500/50 hover:bg-amber-500/[0.03]"}`}
     >
       <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} data-testid={`${testid}-input`} />
       <div className="flex flex-col items-center gap-2">
         <div className="w-11 h-11 rounded-full bg-amber-500/10 border border-amber-500/30 grid place-items-center">
-          {uploading ? <Loader2 className="animate-spin text-amber-400" size={20} /> : <ImageIcon className="text-amber-400" size={20} />}
+          {uploading ? <Loader2 className="animate-spin text-amber-600" size={20} /> : <ImageIcon className="text-amber-600" size={20} />}
         </div>
-        <p className="text-sm font-medium text-slate-200">{uploading ? "Téléversement…" : (dragging ? "Déposez pour téléverser" : label)}</p>
-        <p className="text-xs text-slate-500">{hint}</p>
+        <p className="text-sm font-medium text-[#1F1B16]">{uploading ? "Téléversement…" : (dragging ? "Déposez pour téléverser" : label)}</p>
+        <p className="text-xs text-[#8B7F6E]">{hint}</p>
       </div>
     </div>
   );

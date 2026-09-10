@@ -5,16 +5,20 @@ const ConfigContext = createContext(null);
 const initialProfile = {
   theme_id: "onyx",
   finish_id: "noir_mat",
+  layout_id: "hero", // hero | classic | minimal
   first_name: "",
   last_name: "",
   job_title: "",
   company: "",
   tagline: "",
+  bio: "",
   phone: "",
   email: "",
   avatar_url: "",
+  hero_photo_url: "",
   logo_url: "",
-  links: { linkedin: "", instagram: "", whatsapp: "", website: "", calendly: "", tiktok: "", youtube: "" },
+  accent_color: "", // optional custom accent
+  links: { linkedin: "", instagram: "", whatsapp: "", website: "", calendly: "", tiktok: "", youtube: "", facebook: "", twitter: "" },
 };
 
 const initialShipping = {
