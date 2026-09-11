@@ -135,10 +135,14 @@ FINISHES = [
 
 # Thèmes visuels de la page profil web (le vrai produit personnalisable)
 PROFILE_THEMES = [
-    {"id": "onyx", "name": "Onyx", "bg": "#0B0F17", "accent": "#D4AF37", "text": "#F8FAFC"},
-    {"id": "ivory", "name": "Ivoire", "bg": "#F7F3EC", "accent": "#0B0F17", "text": "#0B0F17"},
-    {"id": "midnight", "name": "Midnight", "bg": "#0F172A", "accent": "#10B981", "text": "#F8FAFC"},
-    {"id": "rose", "name": "Rose Nude", "bg": "#F5E6DE", "accent": "#8B3A2E", "text": "#2A1810"},
+    {"id": "onyx",       "name": "Onyx",        "bg": "#0B0F17", "accent": "#D4AF37", "text": "#F8FAFC", "vibe": "sobre & or"},
+    {"id": "ivory",      "name": "Ivoire",      "bg": "#F7F3EC", "accent": "#B8860B", "text": "#1F1B16", "vibe": "papeterie luxe"},
+    {"id": "midnight",   "name": "Midnight",    "bg": "#0F172A", "accent": "#10B981", "text": "#F8FAFC", "vibe": "nuit émeraude"},
+    {"id": "rose",       "name": "Rose Nude",   "bg": "#F5E6DE", "accent": "#8B3A2E", "text": "#2A1810", "vibe": "terracotta chaleureux"},
+    {"id": "neon",       "name": "Neon",        "bg": "#0A0014", "accent": "#00F0FF", "text": "#F5F0FF", "vibe": "cyberpunk électrique"},
+    {"id": "forest",     "name": "Forêt",       "bg": "#0B1F14", "accent": "#C9A66B", "text": "#F5EED8", "vibe": "bois précieux"},
+    {"id": "champagne",  "name": "Champagne",   "bg": "#FFF8E7", "accent": "#8B6508", "text": "#3D2E00", "vibe": "célébration doré"},
+    {"id": "monochrome", "name": "Mono",        "bg": "#FFFFFF", "accent": "#000000", "text": "#000000", "vibe": "brutaliste"},
 ]
 
 
