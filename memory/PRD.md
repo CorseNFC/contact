@@ -2,51 +2,37 @@
 
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
-- Frontend prod : https://kallitag.fr (cream premium theme)
-- Backend prod : https://api.kallitag.fr
 
-## Architecture
-React + FastAPI + MongoDB Atlas + Stripe LIVE + Resend + Cloudinary + Magic Link + JWT
+## Design v2 — Cream Premium
+- Fond `#FAF7F0` chaud, cartes blanches, texte brun-noir chaud
+- Or `#B8860B` en accent
+- `/admin` conservé en dark mode (classes hardcodées)
 
-## Design System (v2 — cream premium)
-- Fond : `#FAF7F0` (crème chaud)
-- Cartes : `#FFFFFF` avec bordures brunes très légères
-- Texte principal : `#1F1B16` (brun-noir chaud)
-- Texte secondaire : `#4A3F2E` / `#6B5F4E` / `#8B7F6E`
-- Accent : `#B8860B` (or soutenu pour contraste sur crème)
-- Admin : conservé en dark mode (scope `.admin-dark` + classes hardcodées Admin.jsx)
+## 3 Layouts profil (nouvelle version radicalement distincte)
+1. **Hero** — Photo edge-to-edge 4:5 + nom en gros bold overlay avec dégradé, boutons ronds colorés (WhatsApp vert, IG rose, LinkedIn bleu) qui débordent sur la photo, cartes réseaux "Retrouvez-moi"
+2. **Carte** — Grande carte à bordure dorée, ornement top, filigrane initiales en fond, avatar rond + lignes filetées + italique tagline — style carton d'invitation premium
+3. **Liste** — Style Linktree : petit avatar + @handle + gros boutons pleine largeur empilés (call, email, social...)
 
-## Fonctionnalités livrées
-- [x] Landing + Configurator + PublicProfile en thème crème
-- [x] Stripe promo codes activés (100% off pour amis, etc.)
-- [x] 3 layouts profil : **Hero** (photo plein cadre premium), **Classic** (portrait rond élégant), **Minimal** (grille épurée)
-- [x] Champs profil enrichis : bio, hero_photo_url, logo_url, layout_id, accent_color, Facebook, Twitter
-- [x] Boutons ronds colorés d'action rapide (WhatsApp vert, Instagram rose, LinkedIn bleu)
-- [x] Section "Retrouvez-moi" avec cartes réseaux détaillées
-- [x] Admin dashboard en dark mode (isolé)
-- [x] Custom domains kallitag.fr + api.kallitag.fr avec SSL Let's Encrypt
-- [x] Upload photo Cloudinary fonctionnel (URL absolue)
+## Nouveaux champs profil
+`bio` (paragraphe long), `hero_photo_url` (portrait plein cadre), `logo_url` (entreprise), `layout_id`, `accent_color`, `facebook`, `twitter`
 
-## Variables d'env (inchangées vs v1)
-Voir historique. `MONGO_URL`, `STRIPE_*`, `RESEND_*`, `CLOUDINARY_URL`, `CORS_ORIGINS`, `FRONTEND_URL`.
+## Codes promo Stripe
+`allow_promotion_codes=True` activé sur :
+- `POST /api/checkout` (one-shot)
+- `POST /api/bulk-checkout` (B2B)
+- `POST /api/pro/checkout` (subscription)
 
-## Backlog / Prochaines évolutions
+## Backlog
 
 ### 🟡 P1
-- **Rotation credentials** : Mongo password + Stripe webhook secret partagés en clair
-- **Admin bulk URLs** : afficher les N URLs NFC pour les commandes B2B (~10 lignes Admin.jsx)
-- **Vercel var propre** : le bundle actuel appelle encore `contact-production-3cd3.up.railway.app` au lieu de `api.kallitag.fr` — vérifier `REACT_APP_BACKEND_URL` en type Config + Redeploy
+- **Debug checkout kallitag.fr** : "Impossible de démarrer le paiement" reporté par user — backend OK, à investiguer via console browser après nouveau deploy
+- **Vercel REACT_APP_BACKEND_URL** : bundle appelle encore `contact-production-3cd3.up.railway.app` au lieu de `api.kallitag.fr` (marche mais moins propre)
+- **Rotation credentials** : Mongo password + Stripe webhook secret
+- **Admin bulk URLs** : afficher les N URLs NFC pour B2B
 
 ### 🟢 P2
-- Test E2E complet en prod : achat live → magic link → édition → scan NFC → admin
-- Rate limiting sur `/api/auth/request-link` (anti-spam)
-- Migration `noreply@kallitag.fr` sur Resend (au lieu de `onboarding@resend.dev`)
-- Backup MongoDB Atlas
-- Programme parrainage (5€/5€) pour viraliser
-- Éditeur de recadrage photo pré-upload
-
-## Historique déploiement
-1. Deploy initial Vercel + Railway + Atlas
-2. Custom domains kallitag.fr + api.kallitag.fr + SSL
-3. Fix upload photo Cloudinary (URL absolue)
-4. **Refonte design v2** : theme crème premium + 3 layouts profil + Stripe promo codes + nouveaux champs (bio, hero photo, logo)
+- Rate limiting `/api/auth/request-link`
+- Migration `noreply@kallitag.fr` sur Resend
+- Programme parrainage
+- Éditeur de recadrage photo
+- Galerie photo secondaire sur layout Hero

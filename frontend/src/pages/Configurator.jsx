@@ -152,9 +152,9 @@ export default function Configurator() {
                   <p className="text-xs text-[#6B5F4E] mb-4">Choisissez la mise en page — modifiable à tout moment.</p>
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { id: "hero", name: "Hero", desc: "Photo plein cadre, moderne" },
-                      { id: "classic", name: "Classique", desc: "Portrait rond, élégant" },
-                      { id: "minimal", name: "Minimal", desc: "Épuré, grille d'actions" },
+                      { id: "hero", name: "Hero", desc: "Photo plein cadre magazine" },
+                      { id: "card", name: "Carte", desc: "Carton d'invitation premium" },
+                      { id: "list", name: "Liste", desc: "Style Linktree mobile" },
                     ].map((l) => (
                       <button
                         key={l.id}
