@@ -105,7 +105,7 @@ function LayoutHero({ p, t, onAction }) {
   return (
     <div className="w-full h-full overflow-y-auto no-scrollbar" style={{ background: t.bg, color: t.text }}>
       <div className="relative w-full aspect-[4/5] overflow-hidden" style={{ background: t.surface }}>
-        {heroImg ? <img src={heroImg} alt="" className="w-full h-full object-cover" onError={(e) => (e.target.style.display = "none")} />
+        {heroImg ? <img src={heroImg} alt="" className="w-full h-full object-cover" style={{ objectPosition: "center 25%" }} onError={(e) => (e.target.style.display = "none")} />
                  : <div className="w-full h-full grid place-items-center font-display font-black" style={{ background: `linear-gradient(135deg, ${t.surface}, ${t.accent}22)`, color: t.accent, fontSize: 120 }}>{initialsOf(p)}</div>}
         <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.75) 100%)" }} />
         <div className="absolute left-0 right-0 bottom-0 p-6 text-white">
@@ -202,7 +202,7 @@ function LayoutSplit({ p, t, onAction }) {
     <div className="w-full h-full overflow-y-auto no-scrollbar" style={{ background: t.bg, color: t.text }}>
       {/* Bloc photo diagonale top */}
       <div className="relative h-72 overflow-hidden" style={{ background: t.accent }}>
-        {heroImg && <img src={heroImg} alt="" className="w-full h-full object-cover" style={{ clipPath: "polygon(0 0, 100% 0, 100% 78%, 0 100%)" }} />}
+        {heroImg && <img src={heroImg} alt="" className="w-full h-full object-cover" style={{ clipPath: "polygon(0 0, 100% 0, 100% 78%, 0 100%)", objectPosition: "center 25%" }} />}
         {!heroImg && <div className="w-full h-full grid place-items-center font-display font-black" style={{ color: t.isDark ? t.bg : "#FFFFFF", fontSize: 100, clipPath: "polygon(0 0, 100% 0, 100% 78%, 0 100%)" }}>{initialsOf(p)}</div>}
       </div>
       {/* Nom en gros qui déborde */}
@@ -384,8 +384,9 @@ export default function ProfilePreview({ profile, framed = true, onAction }) {
   const t = THEMES[profile.theme_id] || THEMES.onyx;
   const layout = profile.layout_id || "hero";
   const p = profile;
+  const gallery = (p.gallery_urls || []).filter(Boolean);
 
-  const inner =
+  const layoutEl =
     layout === "card"     ? <LayoutCard p={p} t={t} onAction={onAction} /> :
     layout === "list"     ? <LayoutList p={p} t={t} onAction={onAction} /> :
     layout === "split"    ? <LayoutSplit p={p} t={t} onAction={onAction} /> :
@@ -393,13 +394,34 @@ export default function ProfilePreview({ profile, framed = true, onAction }) {
     layout === "brutal"   ? <LayoutBrutal p={p} t={t} onAction={onAction} /> :
     <LayoutHero p={p} t={t} onAction={onAction} />;
 
+  // Universal gallery block — same rendering in preview (framed) and public (unframed).
+  // Hero embeds it in its section_order and skips this outer block.
+  const showOuterGallery = gallery.length > 0 && layout !== "hero";
+  const outerGallery = showOuterGallery ? (
+    <div className="px-5 pb-6 pt-2" style={{ background: t.bg }} data-testid="gallery-outer">
+      <p className="text-[10px] uppercase tracking-widest mb-2 font-semibold" style={{ color: t.accent }}>Galerie</p>
+      <div className="grid grid-cols-3 gap-1.5">
+        {gallery.slice(0, 6).map((src, i) => (
+          <a key={i} href={framed ? undefined : src} target={framed ? undefined : "_blank"} rel="noopener"
+             className={`overflow-hidden rounded-lg block ${i === 0 && gallery.length >= 3 ? "col-span-2 row-span-2 aspect-square" : "aspect-square"}`}
+             style={{ border: `1px solid ${t.border}` }}
+             data-testid={`gallery-photo-${i}`}>
+            <img src={src} alt="" className="w-full h-full object-cover" onError={(e) => (e.target.style.display = "none")} />
+          </a>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  const inner = <>{layoutEl}{outerGallery}</>;
+
   if (!framed) return <div className="w-full min-h-screen">{inner}</div>;
   return (
     <div className="relative mx-auto" style={{ width: 300 }} data-testid="profile-preview-frame">
       <div className="rounded-[42px] p-2 shadow-2xl" style={{ background: "#0A0A0A", boxShadow: "0 30px 80px -30px rgba(184,134,11,0.35), 0 20px 50px -20px rgba(0,0,0,0.6)" }}>
         <div className="rounded-[34px] overflow-hidden relative" style={{ width: "100%", height: 600 }}>
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-5 rounded-full bg-black z-10" />
-          {inner}
+          <div className="w-full h-full overflow-y-auto no-scrollbar">{inner}</div>
         </div>
       </div>
     </div>

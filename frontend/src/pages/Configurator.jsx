@@ -14,6 +14,7 @@ import DropZone from "@/components/DropZone";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { useConfig } from "@/context/ConfigContext";
 import { fetchProducts, startCheckout, formatEUR, uploadAvatarGuest } from "@/lib/api";
+import { compressImage } from "@/lib/imageCompress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -263,7 +264,7 @@ export default function Configurator() {
                     <div>
                       <Label className="text-xs text-[#6B5F4E] mb-2 block">Photo de l'animal (optionnel)</Label>
                       <DropZone value={cfg.profile.avatar_url} testid="cfg-avatar-drop"
-                        onUpload={async (file) => { const res = await uploadAvatarGuest(file); const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`; cfg.updateProfile({ avatar_url: url }); }}
+                        onUpload={async (file) => { const c = await compressImage(file, { maxDim: 800, quality: 0.85 }); const res = await uploadAvatarGuest(c); const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`; cfg.updateProfile({ avatar_url: url }); }}
                         onClear={() => cfg.updateProfile({ avatar_url: "" })} />
                     </div>
                     <div className="border-t border-[#1F1B16]/8 pt-4">
@@ -317,7 +318,8 @@ export default function Configurator() {
                         value={cfg.profile.avatar_url}
                         testid="cfg-avatar-drop"
                         onUpload={async (file) => {
-                          const res = await uploadAvatarGuest(file);
+                          const compressed = await compressImage(file, { maxDim: 800, quality: 0.85 });
+                          const res = await uploadAvatarGuest(compressed);
                           const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
                           cfg.updateProfile({ avatar_url: url });
                         }}
@@ -331,9 +333,10 @@ export default function Configurator() {
                         value={cfg.profile.hero_photo_url}
                         testid="cfg-hero-drop"
                         label="Photo verticale plein cadre"
-                        hint="Format portrait recommandé · 5 Mo max"
+                        hint="Format portrait 4:5 recommandé · 5 Mo max · compressée auto"
                         onUpload={async (file) => {
-                          const res = await uploadAvatarGuest(file);
+                          const compressed = await compressImage(file, { maxDim: 1600, quality: 0.85 });
+                          const res = await uploadAvatarGuest(compressed);
                           const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
                           cfg.updateProfile({ hero_photo_url: url });
                         }}
@@ -349,7 +352,8 @@ export default function Configurator() {
                         label="Logo carré"
                         hint="PNG transparent recommandé · 2 Mo max"
                         onUpload={async (file) => {
-                          const res = await uploadAvatarGuest(file);
+                          const compressed = await compressImage(file, { maxDim: 512, quality: 0.9, keepPngTransparency: true });
+                          const res = await uploadAvatarGuest(compressed);
                           const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
                           cfg.updateProfile({ logo_url: url });
                         }}
@@ -426,7 +430,8 @@ export default function Configurator() {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
                                 try {
-                                  const res = await uploadAvatarGuest(file);
+                                  const compressed = await compressImage(file, { maxDim: 1200, quality: 0.82 });
+                                  const res = await uploadAvatarGuest(compressed);
                                   const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
                                   cfg.addGalleryUrl(url);
                                   toast.success("Photo ajoutée");
