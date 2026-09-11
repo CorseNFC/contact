@@ -3,6 +3,13 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v3.6 — Panel aperçu mobile refondu (Feb 2026)
+- **Panel plein écran** `fixed inset-0 z-[100]` remplace shadcn Dialog (contournement des soucis de centrage/max-height)
+- **3 boutons sortie visibles simultanément** : "← Retour" doré 44px en header + X en header + gros "Retour à la personnalisation" en footer sticky
+- **Bouton back navigateur intercepté** via `history.pushState({ktPreview: true})` + `popstate` → ferme le panel au lieu de quitter la page (aucune perte de données)
+- **Body scroll lock** pendant l'ouverture (`document.body.style.overflow = "hidden"`)
+- **Safe-area bottom** respectée via `env(safe-area-inset-bottom)` — pas de bouton masqué par la barre iOS
+
 ## Design v3.5 — Admin classification revenus (Feb 2026)
 - **4 statuts par commande** : `counted` (défaut) · `gift` · `refunded` · `cancelled` — champ `revenue_status` en base
 - **CA net dynamique** : `/api/admin/stats` exclut les statuts non-counted du calcul revenue_cents — testé : 39,90 € → 0,00 € après passage en "Offerte"
