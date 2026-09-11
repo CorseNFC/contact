@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { ArrowRight, Check, Loader2, Smartphone, CreditCard as CardIcon, Maximize2, X } from "lucide-react";
+import { ArrowRight, Check, Loader2, Smartphone, CreditCard as CardIcon, Maximize2, X, Palette, Images, ArrowUp, ArrowDown, Plus, Trash2 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CardPreview from "@/components/CardPreview";
 import ProfilePreview, { LAYOUTS } from "@/components/ProfilePreview";
 import ThemeThumb from "@/components/ThemeThumb";
 import LayoutIcon from "@/components/LayoutIcon";
+import ColorField from "@/components/ColorField";
 import DropZone from "@/components/DropZone";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { useConfig } from "@/context/ConfigContext";
@@ -102,12 +103,15 @@ export default function Configurator() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
               </button>
               <div className="flex-1 min-w-0">
-                <p className="eyebrow text-[9px] leading-none mb-1">Votre aperçu</p>
-                <p className="text-[11px] font-semibold text-[#1F1B16] truncate">
+                <p className="eyebrow text-[9px] leading-none mb-0.5">Votre aperçu</p>
+                <p className="text-[11px] text-[#8B7F6E] truncate leading-tight">
                   {data.themes.find(t => t.id === cfg.profile.theme_id)?.name} · {LAYOUTS.find(l => l.id === cfg.profile.layout_id)?.name || "Hero"}
                 </p>
-                <p className="text-[11px] text-[#8B7F6E] truncate">
-                  {data.finishes.find(f => f.id === cfg.profile.finish_id)?.name} · <span className="text-amber-600 font-semibold">{formatEUR(total)}</span>
+                <p className="text-[11px] text-[#8B7F6E] truncate leading-tight">
+                  {data.finishes.find(f => f.id === cfg.profile.finish_id)?.name} · {cfg.quantity}×
+                </p>
+                <p className="mt-1 font-display font-bold text-base leading-none gold-text" data-testid="sticky-total-mobile">
+                  {formatEUR(total)}
                 </p>
               </div>
               <button
@@ -367,6 +371,105 @@ export default function Configurator() {
                         <Field label="YouTube" testid="input-youtube" value={cfg.profile.links.youtube} onChange={(v) => cfg.updateLinks({ youtube: v })} placeholder="https://youtube.com/@..." />
                       </div>
                     </div>
+
+                    {/* Couleurs personnalisées */}
+                    <div className="border-t border-[#1F1B16]/8 pt-6">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Palette size={14} className="text-amber-600" />
+                        <h3 className="eyebrow">Couleurs personnalisées</h3>
+                      </div>
+                      <p className="text-xs text-[#8B7F6E] mb-3">Facultatif — collez la charte graphique de votre marque. Laissez vide pour utiliser les couleurs du thème.</p>
+                      <div className="kt-card p-4 divide-y divide-[#1F1B16]/8">
+                        <ColorField label="Nom / Prénom"        value={cfg.profile.text_colors?.name || ""}  onChange={(v) => cfg.updateTextColors({ name: v })}  testid="color-name" />
+                        <ColorField label="Poste / Entreprise"  value={cfg.profile.text_colors?.job || ""}   onChange={(v) => cfg.updateTextColors({ job: v })}   testid="color-job" />
+                        <ColorField label="Bio / À propos"      value={cfg.profile.text_colors?.bio || ""}   onChange={(v) => cfg.updateTextColors({ bio: v })}   testid="color-bio" />
+                        <ColorField label="Bouton contact"      value={cfg.profile.text_colors?.cta || ""}   onChange={(v) => cfg.updateTextColors({ cta: v })}   testid="color-cta" />
+                        <ColorField label="Libellé des liens"   value={cfg.profile.text_colors?.links || ""} onChange={(v) => cfg.updateTextColors({ links: v })} testid="color-links" />
+                      </div>
+                    </div>
+
+                    {/* Galerie photos (uniquement pertinente sur Hero) */}
+                    <div className="border-t border-[#1F1B16]/8 pt-6">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Images size={14} className="text-amber-600" />
+                        <h3 className="eyebrow">Galerie photos <span className="text-[10px] text-[#8B7F6E] normal-case tracking-normal font-normal">· jusqu'à 6 — affichée sur layout Hero</span></h3>
+                      </div>
+                      <p className="text-xs text-[#8B7F6E] mb-3">Idéal pour un mini portfolio (créatifs, photographes, coiffeurs, tatoueurs...).</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(cfg.profile.gallery_urls || []).map((url, idx) => (
+                          <div key={idx} className="relative aspect-square rounded-xl overflow-hidden border border-[#1F1B16]/10 group" data-testid={`gallery-item-${idx}`}>
+                            <img src={url} alt="" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => cfg.removeGalleryAt(idx)}
+                              data-testid={`gallery-remove-${idx}`}
+                              className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white grid place-items-center opacity-0 group-hover:opacity-100 transition"
+                              aria-label="Supprimer"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        ))}
+                        {(cfg.profile.gallery_urls || []).length < 6 && (
+                          <label className="aspect-square rounded-xl border-2 border-dashed border-[#1F1B16]/15 hover:border-amber-500/60 grid place-items-center cursor-pointer transition text-[#8B7F6E] hover:text-amber-600" data-testid="gallery-add">
+                            <div className="text-center">
+                              <Plus size={22} className="mx-auto" />
+                              <p className="text-[10px] mt-1">Ajouter</p>
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="sr-only"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                try {
+                                  const res = await uploadAvatarGuest(file);
+                                  const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
+                                  cfg.addGalleryUrl(url);
+                                  toast.success("Photo ajoutée");
+                                } catch { toast.error("Upload impossible"); }
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ordre des sections — uniquement layout Hero */}
+                    {cfg.profile.layout_id === "hero" && (
+                      <div className="border-t border-[#1F1B16]/8 pt-6" data-testid="section-order-block">
+                        <div className="flex items-center gap-2 mb-1">
+                          <ArrowUp size={12} className="text-amber-600" />
+                          <ArrowDown size={12} className="text-amber-600 -ml-3" />
+                          <h3 className="eyebrow ml-2">Ordre des sections <span className="text-[10px] text-[#8B7F6E] normal-case tracking-normal font-normal">· layout Hero uniquement</span></h3>
+                        </div>
+                        <p className="text-xs text-[#8B7F6E] mb-3">Réorganisez les blocs de votre page profil comme bon vous semble.</p>
+                        <div className="kt-card p-2 space-y-1">
+                          {(cfg.profile.section_order && cfg.profile.section_order.length
+                            ? cfg.profile.section_order
+                            : ["quick", "about", "gallery", "cta", "socials"]
+                          ).map((sid, i, arr) => {
+                            const labels = { quick: "Boutons rapides", about: "À propos / Bio", gallery: "Galerie photos", cta: "Bouton contact", socials: "Liste réseaux" };
+                            return (
+                              <div key={sid} className="flex items-center gap-2 p-2 rounded-lg hover:bg-[#F3EEE1]/60 transition" data-testid={`section-row-${sid}`}>
+                                <span className="w-6 h-6 rounded bg-amber-500/15 text-amber-700 text-xs font-bold grid place-items-center flex-shrink-0">{i + 1}</span>
+                                <span className="flex-1 text-sm font-medium">{labels[sid] || sid}</span>
+                                <button type="button" disabled={i === 0} onClick={() => cfg.moveSection(sid, -1)} data-testid={`section-up-${sid}`}
+                                        className="w-7 h-7 rounded-md border border-[#1F1B16]/10 grid place-items-center text-[#4A3F2E] disabled:opacity-30 hover:border-amber-500 hover:text-amber-600 transition">
+                                  <ArrowUp size={13} />
+                                </button>
+                                <button type="button" disabled={i === arr.length - 1} onClick={() => cfg.moveSection(sid, 1)} data-testid={`section-down-${sid}`}
+                                        className="w-7 h-7 rounded-md border border-[#1F1B16]/10 grid place-items-center text-[#4A3F2E] disabled:opacity-30 hover:border-amber-500 hover:text-amber-600 transition">
+                                  <ArrowDown size={13} />
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
 

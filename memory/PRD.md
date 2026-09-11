@@ -3,6 +3,13 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v3.2 — Personnalisation avancée + Admin B2B (Feb 2026)
+- **Couleurs perso par élément** : color pickers pour nom/prénom, poste, bio, bouton CTA, libellé réseaux — fallback thème si vide (`text_colors: Dict[str,str]` en base)
+- **Galerie 3-6 photos** : upload multiple sur Cloudinary via `/upload-avatar-guest` — rendu grid dans layout Hero uniquement (première photo en 2×2 si ≥ 3 photos)
+- **Ordre des sections Hero** : réorganisation `quick/about/gallery/cta/socials` via flèches ↑↓ (5 blocs) — `section_order: List[str]`
+- **Prix sticky mobile agrandi** : gold-text, taille base, mise à jour live à chaque changement quantité (testé : 39,90 → 119,70 €)
+- **Admin B2B** : affichage grand format des N URLs NFC par commande bulk avec badge "B2B · N cartes", numérotation #01/#02, copie individuelle ou copie groupée (endpoint enrichi `nfc_urls: [{slug, url, first_name, last_name, job_title}]`)
+
 ## Design v3.1 — UX Mobile Configurateur (Feb 2026)
 - **Aperçu sticky mobile** : mini-thumbnail live + résumé (thème, layout, finition, prix) + bouton "Aperçu" en haut de page sur mobile — toujours visible pendant scroll
 - **Dialog plein écran** : tap sur "Aperçu" ouvre modale avec phone frame complet + tabs Profil/Carte + résumé commande
@@ -25,7 +32,7 @@
 6. **Brutalist** — Bordures nettes noires, typo massive avec contour stroke, mono uppercase
 
 ## Nouveaux champs profil
-`bio`, `hero_photo_url`, `logo_url`, `layout_id`, `accent_color`, `facebook`, `twitter`
+`bio`, `hero_photo_url`, `logo_url`, `layout_id`, `accent_color`, `facebook`, `twitter`, `text_colors` (Dict), `gallery_urls` (List, max 6), `section_order` (List — Hero)
 
 ## Codes promo Stripe
 `allow_promotion_codes=True` sur `/checkout`, `/bulk-checkout`, `/pro/checkout`
@@ -36,12 +43,12 @@
 - **Debug checkout kallitag.fr** : "Impossible de démarrer le paiement" — backend OK, à investiguer via console browser après push
 - **Vercel REACT_APP_BACKEND_URL** : bundle appelle encore ancien URL Railway (marche mais moins propre)
 - **Rotation credentials** : Mongo password + Stripe webhook secret
-- **Admin bulk URLs** : afficher N URLs NFC pour B2B
 
 ### 🟢 P2
 - Rate limiting `/api/auth/request-link`
 - `noreply@kallitag.fr` sur Resend
 - Programme parrainage
 - Éditeur de recadrage photo
-- Galerie photo secondaire layout Hero
-- Thèmes user-customisables (choix couleur perso)
+- Thèmes user-customisables niveau accent (choix couleur perso global — le picker par élément couvre déjà les besoins texte)
+- Section reorder pour tous les layouts (actuellement Hero uniquement)
+- Éditeur libre canvas (drag & drop pixel-perfect des éléments)

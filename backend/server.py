@@ -164,6 +164,9 @@ class ProfileConfig(BaseModel):
     logo_url: Optional[str] = ""
     layout_id: Optional[str] = "hero"  # hero | classic | minimal
     accent_color: Optional[str] = ""
+    text_colors: Dict[str, str] = Field(default_factory=dict)  # name, job, bio, cta, links
+    gallery_urls: List[str] = Field(default_factory=list)      # up to 6 photos (Hero layout)
+    section_order: List[str] = Field(default_factory=list)     # order of sections in Hero
     links: Dict[str, str] = Field(default_factory=dict)
     # Google reviews plaque fields
     business_name: Optional[str] = ""
@@ -1232,6 +1235,20 @@ async def admin_list_orders(admin=Depends(require_admin), status: Optional[str] 
     for o in orders:
         slug = o.get("profile_slug")
         o["nfc_url"] = f"{base}/p/{slug}" if slug else ""
+        # For bulk B2B orders: include ALL card URLs so admin can encode each NFC chip
+        if o.get("is_bulk") and o.get("profile_cards"):
+            o["nfc_urls"] = [
+                {
+                    "slug": c.get("slug"),
+                    "url": f"{base}/p/{c.get('slug')}" if c.get("slug") else "",
+                    "first_name": (c.get("profile") or {}).get("first_name", ""),
+                    "last_name": (c.get("profile") or {}).get("last_name", ""),
+                    "job_title": (c.get("profile") or {}).get("job_title", ""),
+                }
+                for c in o.get("profile_cards", [])
+            ]
+        else:
+            o["nfc_urls"] = []
     return {"orders": orders, "count": len(orders)}
 
 

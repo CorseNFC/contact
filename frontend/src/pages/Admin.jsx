@@ -148,12 +148,15 @@ export default function Admin() {
                 {orders.map((o) => {
                   const prof = o.profile || {}; const ship = o.shipping || {};
                   const isShipped = !!o.shipped;
+                  const isBulk = !!o.is_bulk;
+                  const bulkUrls = o.nfc_urls || [];
                   return (
                     <tr key={o.order_id} className="border-b border-white/5" data-testid={`order-row-${o.order_id}`}>
                       <td className="p-3 whitespace-nowrap text-slate-400">{new Date(o.created_at).toLocaleDateString("fr-FR")}<br /><span className="text-[10px] text-slate-600">{new Date(o.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span></td>
                       <td className="p-3">
-                        <p className="font-medium">{prof.first_name} {prof.last_name}</p>
+                        <p className="font-medium">{isBulk ? (o.company_name || `Pack ${bulkUrls.length} cartes`) : `${prof.first_name || ""} ${prof.last_name || ""}`}</p>
                         <p className="text-slate-500 text-[11px]">{o.contact_email}</p>
+                        {isBulk && <span className="mt-1 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-300 border border-amber-400/40 rounded-full px-1.5 py-0.5">B2B · {bulkUrls.length} cartes</span>}
                       </td>
                       <td className="p-3">
                         <p>{o.product_name}</p>
@@ -165,13 +168,42 @@ export default function Admin() {
                         <span className="text-slate-500">{ship.postal_code} {ship.city} {ship.country}</span>
                       </td>
                       <td className="p-3">
-                        <div className="flex items-center gap-1.5 max-w-[280px]">
-                          <span className="font-mono text-[10px] text-amber-300 truncate flex-1" data-testid={`nfc-url-${o.order_id}`}>{o.nfc_url}</span>
-                          <button onClick={() => copyNfc(o.nfc_url, o.order_id)} className="text-slate-400 hover:text-white" data-testid={`copy-${o.order_id}`}>
-                            {copied === o.order_id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                          </button>
-                          <a href={o.nfc_url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-white"><ExternalLink size={12} /></a>
-                        </div>
+                        {isBulk && bulkUrls.length > 0 ? (
+                          <div className="space-y-1.5 min-w-[320px] max-w-[420px]" data-testid={`bulk-urls-${o.order_id}`}>
+                            <p className="text-[10px] text-amber-300 font-bold uppercase tracking-wider mb-1">▸ {bulkUrls.length} URLs à encoder</p>
+                            {bulkUrls.map((c, idx) => {
+                              const copyId = `${o.order_id}-${idx}`;
+                              return (
+                                <div key={copyId} className="flex items-center gap-2 bg-slate-900/60 border border-white/5 rounded-md px-2 py-1.5">
+                                  <span className="text-[10px] text-slate-500 font-mono w-6 flex-shrink-0">#{String(idx + 1).padStart(2, "0")}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-semibold text-slate-200 truncate">{c.first_name} {c.last_name}</p>
+                                    <p className="font-mono text-[10px] text-amber-300 truncate" data-testid={`bulk-url-${copyId}`}>{c.url}</p>
+                                  </div>
+                                  <button onClick={() => copyNfc(c.url, copyId)} className="text-slate-400 hover:text-white flex-shrink-0" data-testid={`copy-bulk-${copyId}`} title="Copier">
+                                    {copied === copyId ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                  </button>
+                                  <a href={c.url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-white flex-shrink-0" title="Ouvrir"><ExternalLink size={12} /></a>
+                                </div>
+                              );
+                            })}
+                            <button
+                              onClick={() => copyNfc(bulkUrls.map((c, i) => `#${i + 1} ${c.first_name} ${c.last_name} — ${c.url}`).join("\n"), `${o.order_id}-all`)}
+                              data-testid={`copy-bulk-all-${o.order_id}`}
+                              className="mt-2 w-full text-[10px] py-1.5 rounded-md border border-amber-400/40 text-amber-300 hover:bg-amber-500/10 inline-flex items-center justify-center gap-1.5 transition"
+                            >
+                              {copied === `${o.order_id}-all` ? <><Check size={11} className="text-emerald-400" /> Copié !</> : <><Copy size={11} /> Copier les {bulkUrls.length} liens</>}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 max-w-[280px]">
+                            <span className="font-mono text-[10px] text-amber-300 truncate flex-1" data-testid={`nfc-url-${o.order_id}`}>{o.nfc_url}</span>
+                            <button onClick={() => copyNfc(o.nfc_url, o.order_id)} className="text-slate-400 hover:text-white" data-testid={`copy-${o.order_id}`}>
+                              {copied === o.order_id ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                            </button>
+                            <a href={o.nfc_url} target="_blank" rel="noreferrer" className="text-slate-400 hover:text-white"><ExternalLink size={12} /></a>
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-right font-medium">{formatEUR(o.amount_cents)}</td>
                       <td className="p-3 text-center">
