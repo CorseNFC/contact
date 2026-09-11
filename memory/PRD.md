@@ -3,6 +3,18 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v3.4 — Cadrage, Compression, Galerie (Feb 2026)
+- **Cadrage cohérent preview/public** : `objectPosition: "center 25%"` sur photo hero (Hero + Split) → visages du tiers supérieur toujours visibles indépendamment de la largeur (300px preview vs 390-448px public)
+- **Compression client automatique** : helper `/app/frontend/src/lib/imageCompress.js` (canvas resize + JPEG re-encode) — avatar 800px, hero 1600px, logo 512px (PNG transparency preservée), galerie 1200px, qualité 82-90%
+- **Galerie universelle** : rendue dans TOUS les layouts (Hero embedded via section_order · Card/List/Split/Gradient/Brutal via bloc `gallery-outer` unifié) — même rendu en preview et sur profil public
+- **Persistance galerie confirmée** : les URLs `gallery_urls[]` sont sauvegardées via `req.profile.model_dump()` dans l'ordre Stripe
+
+## Design v3.3 — Couleurs granulaires + Persistance (Feb 2026)
+- **7 couleurs par élément** : Prénom · Nom · Poste · Entreprise · Bio · Bouton CTA · Libellé liens (fallback thème si vide)
+- **Mise à jour temps réel** : les 6 layouts (Hero, Card, List, Split, Gradient, Brutal) appliquent maintenant `text_colors` — helper `useColors(p,t)` centralisé
+- **Persistance localStorage** : clé `kt_configurator_state_v2` — le state (profil complet, shipping, contactEmail, product, quantity) survit à toute navigation ou rafraîchissement
+- **Mobile dialog aperçu** : bouton "Retour" en header sticky + gros bouton doré "Retour à la personnalisation" en bas + X classique — 3 sorties évidentes
+
 ## Design v3.2 — Personnalisation avancée + Admin B2B (Feb 2026)
 - **Couleurs perso par élément** : color pickers pour nom/prénom, poste, bio, bouton CTA, libellé réseaux — fallback thème si vide (`text_colors: Dict[str,str]` en base)
 - **Galerie 3-6 photos** : upload multiple sur Cloudinary via `/upload-avatar-guest` — rendu grid dans layout Hero uniquement (première photo en 2×2 si ≥ 3 photos)

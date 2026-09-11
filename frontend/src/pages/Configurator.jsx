@@ -14,6 +14,7 @@ import DropZone from "@/components/DropZone";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { useConfig } from "@/context/ConfigContext";
 import { fetchProducts, startCheckout, formatEUR, uploadAvatarGuest } from "@/lib/api";
+import { compressImage } from "@/lib/imageCompress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -90,17 +91,17 @@ export default function Configurator() {
           {/* MOBILE ONLY — Sticky mini-preview bar (visible en permanence) */}
           <div className="lg:hidden sticky top-16 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2.5 bg-[#FAF7F0]/95 backdrop-blur-md border-y border-[#1F1B16]/10 shadow-sm" data-testid="mobile-sticky-preview">
             <div className="flex items-center gap-3">
-              {/* Mini live thumbnail */}
+              {/* Mini live thumbnail — plus grand pour vraiment voir ses choix */}
               <button
                 onClick={() => setPreviewOpen(true)}
                 data-testid="mobile-preview-thumb"
-                className="flex-shrink-0 w-14 h-[72px] rounded-lg overflow-hidden border border-[#1F1B16]/12 shadow-sm bg-white relative"
+                className="flex-shrink-0 w-[74px] h-[110px] rounded-xl overflow-hidden border border-[#1F1B16]/15 shadow-md bg-white relative"
                 aria-label="Voir l'aperçu en grand"
               >
-                <div className="absolute inset-0 pointer-events-none" style={{ transform: "scale(0.19)", transformOrigin: "top left", width: 300, height: 380 }}>
+                <div className="absolute inset-0 pointer-events-none" style={{ transform: "scale(0.28)", transformOrigin: "top left", width: 300, height: 500 }}>
                   <ProfilePreview profile={cfg.profile} framed={false} />
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-transparent pointer-events-none" />
               </button>
               <div className="flex-1 min-w-0">
                 <p className="eyebrow text-[9px] leading-none mb-0.5">Votre aperçu</p>
@@ -214,7 +215,7 @@ export default function Configurator() {
                               <Check size={13} strokeWidth={3} className="text-white" />
                             </div>
                           )}
-                          <div className="w-full aspect-[4/5] max-h-28 mx-auto mb-2 flex items-center justify-center">
+                          <div className="w-10 h-[52px] mb-2 flex items-center justify-center">
                             <LayoutIcon id={l.id} active={active} className="w-full h-full" />
                           </div>
                           <p className="text-sm font-semibold">{l.name}</p>
@@ -263,7 +264,7 @@ export default function Configurator() {
                     <div>
                       <Label className="text-xs text-[#6B5F4E] mb-2 block">Photo de l'animal (optionnel)</Label>
                       <DropZone value={cfg.profile.avatar_url} testid="cfg-avatar-drop"
-                        onUpload={async (file) => { const res = await uploadAvatarGuest(file); const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`; cfg.updateProfile({ avatar_url: url }); }}
+                        onUpload={async (file) => { const c = await compressImage(file, { maxDim: 800, quality: 0.85 }); const res = await uploadAvatarGuest(c); const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`; cfg.updateProfile({ avatar_url: url }); }}
                         onClear={() => cfg.updateProfile({ avatar_url: "" })} />
                     </div>
                     <div className="border-t border-[#1F1B16]/8 pt-4">
@@ -317,7 +318,8 @@ export default function Configurator() {
                         value={cfg.profile.avatar_url}
                         testid="cfg-avatar-drop"
                         onUpload={async (file) => {
-                          const res = await uploadAvatarGuest(file);
+                          const compressed = await compressImage(file, { maxDim: 800, quality: 0.85 });
+                          const res = await uploadAvatarGuest(compressed);
                           const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
                           cfg.updateProfile({ avatar_url: url });
                         }}
@@ -331,9 +333,10 @@ export default function Configurator() {
                         value={cfg.profile.hero_photo_url}
                         testid="cfg-hero-drop"
                         label="Photo verticale plein cadre"
-                        hint="Format portrait recommandé · 5 Mo max"
+                        hint="Format portrait 4:5 recommandé · 5 Mo max · compressée auto"
                         onUpload={async (file) => {
-                          const res = await uploadAvatarGuest(file);
+                          const compressed = await compressImage(file, { maxDim: 1600, quality: 0.85 });
+                          const res = await uploadAvatarGuest(compressed);
                           const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
                           cfg.updateProfile({ hero_photo_url: url });
                         }}
@@ -349,7 +352,8 @@ export default function Configurator() {
                         label="Logo carré"
                         hint="PNG transparent recommandé · 2 Mo max"
                         onUpload={async (file) => {
-                          const res = await uploadAvatarGuest(file);
+                          const compressed = await compressImage(file, { maxDim: 512, quality: 0.9, keepPngTransparency: true });
+                          const res = await uploadAvatarGuest(compressed);
                           const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
                           cfg.updateProfile({ logo_url: url });
                         }}
@@ -378,13 +382,15 @@ export default function Configurator() {
                         <Palette size={14} className="text-amber-600" />
                         <h3 className="eyebrow">Couleurs personnalisées</h3>
                       </div>
-                      <p className="text-xs text-[#8B7F6E] mb-3">Facultatif — collez la charte graphique de votre marque. Laissez vide pour utiliser les couleurs du thème.</p>
+                      <p className="text-xs text-[#8B7F6E] mb-3">Chaque élément peut avoir sa propre couleur — l'aperçu se met à jour en direct. Laissez vide pour utiliser les couleurs du thème.</p>
                       <div className="kt-card p-4 divide-y divide-[#1F1B16]/8">
-                        <ColorField label="Nom / Prénom"        value={cfg.profile.text_colors?.name || ""}  onChange={(v) => cfg.updateTextColors({ name: v })}  testid="color-name" />
-                        <ColorField label="Poste / Entreprise"  value={cfg.profile.text_colors?.job || ""}   onChange={(v) => cfg.updateTextColors({ job: v })}   testid="color-job" />
-                        <ColorField label="Bio / À propos"      value={cfg.profile.text_colors?.bio || ""}   onChange={(v) => cfg.updateTextColors({ bio: v })}   testid="color-bio" />
-                        <ColorField label="Bouton contact"      value={cfg.profile.text_colors?.cta || ""}   onChange={(v) => cfg.updateTextColors({ cta: v })}   testid="color-cta" />
-                        <ColorField label="Libellé des liens"   value={cfg.profile.text_colors?.links || ""} onChange={(v) => cfg.updateTextColors({ links: v })} testid="color-links" />
+                        <ColorField label="Prénom"              value={cfg.profile.text_colors?.first_name || ""} onChange={(v) => cfg.updateTextColors({ first_name: v })} testid="color-first-name" />
+                        <ColorField label="Nom"                 value={cfg.profile.text_colors?.last_name || ""}  onChange={(v) => cfg.updateTextColors({ last_name: v })}  testid="color-last-name" />
+                        <ColorField label="Poste"               value={cfg.profile.text_colors?.job || ""}        onChange={(v) => cfg.updateTextColors({ job: v })}        testid="color-job" />
+                        <ColorField label="Entreprise"          value={cfg.profile.text_colors?.company || ""}    onChange={(v) => cfg.updateTextColors({ company: v })}    testid="color-company" />
+                        <ColorField label="Bio / À propos"      value={cfg.profile.text_colors?.bio || ""}        onChange={(v) => cfg.updateTextColors({ bio: v })}        testid="color-bio" />
+                        <ColorField label="Bouton contact"      value={cfg.profile.text_colors?.cta || ""}        onChange={(v) => cfg.updateTextColors({ cta: v })}        testid="color-cta" />
+                        <ColorField label="Libellé des liens"   value={cfg.profile.text_colors?.links || ""}      onChange={(v) => cfg.updateTextColors({ links: v })}      testid="color-links" />
                       </div>
                     </div>
 
@@ -424,7 +430,8 @@ export default function Configurator() {
                                 const file = e.target.files?.[0];
                                 if (!file) return;
                                 try {
-                                  const res = await uploadAvatarGuest(file);
+                                  const compressed = await compressImage(file, { maxDim: 1200, quality: 0.82 });
+                                  const res = await uploadAvatarGuest(compressed);
                                   const url = res.url.startsWith("http") ? res.url : `${process.env.REACT_APP_BACKEND_URL}${res.url}`;
                                   cfg.addGalleryUrl(url);
                                   toast.success("Photo ajoutée");
@@ -570,22 +577,31 @@ export default function Configurator() {
       {/* MOBILE FULL-SCREEN PREVIEW DIALOG */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="p-0 max-w-md bg-[#FAF7F0] border-[#1F1B16]/10 [&>button]:hidden" data-testid="mobile-preview-dialog">
-          <div className="relative p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="eyebrow">Aperçu en direct</p>
-                <p className="text-xs text-[#8B7F6E] mt-0.5">Vos choix en temps réel</p>
-              </div>
-              <button
-                onClick={() => setPreviewOpen(false)}
-                data-testid="mobile-preview-close"
-                className="w-9 h-9 rounded-full bg-white border border-[#1F1B16]/10 grid place-items-center active:scale-95 transition"
-                aria-label="Fermer"
-              >
-                <X size={16} />
-              </button>
+          {/* Header sticky avec bouton retour bien visible */}
+          <div className="sticky top-0 z-20 bg-[#FAF7F0]/95 backdrop-blur-md border-b border-[#1F1B16]/10 px-4 py-3 flex items-center justify-between">
+            <button
+              onClick={() => setPreviewOpen(false)}
+              data-testid="mobile-preview-back"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-[#1F1B16]/10 text-sm font-medium text-[#1F1B16] active:scale-95 transition"
+            >
+              <ArrowRight size={14} className="rotate-180" />
+              <span>Retour</span>
+            </button>
+            <div className="text-center">
+              <p className="text-[10px] uppercase tracking-widest text-[#8B7F6E] leading-none">Aperçu</p>
+              <p className="text-xs font-semibold text-amber-600 mt-1 leading-none">{formatEUR(total)}</p>
             </div>
+            <button
+              onClick={() => setPreviewOpen(false)}
+              data-testid="mobile-preview-close"
+              className="w-9 h-9 rounded-full bg-white border border-[#1F1B16]/10 grid place-items-center active:scale-95 transition"
+              aria-label="Fermer"
+            >
+              <X size={16} />
+            </button>
+          </div>
 
+          <div className="p-5">
             <div className="inline-flex rounded-full border border-[#1F1B16]/10 p-0.5 text-xs mb-4 bg-white">
               <button
                 onClick={() => setPreviewMode("profile")}
@@ -625,6 +641,16 @@ export default function Configurator() {
                 <span className="font-display font-bold text-lg gold-text">{formatEUR(total)}</span>
               </div>
             </div>
+
+            {/* Gros bouton retour en bas pour ne pas rater */}
+            <button
+              onClick={() => setPreviewOpen(false)}
+              data-testid="mobile-preview-back-bottom"
+              className="mt-5 w-full h-12 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#8B6508] text-white font-bold text-sm inline-flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition"
+            >
+              <ArrowRight size={16} className="rotate-180" />
+              Retour à la personnalisation
+            </button>
           </div>
         </DialogContent>
       </Dialog>
