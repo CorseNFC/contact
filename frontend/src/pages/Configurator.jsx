@@ -378,13 +378,15 @@ export default function Configurator() {
                         <Palette size={14} className="text-amber-600" />
                         <h3 className="eyebrow">Couleurs personnalisées</h3>
                       </div>
-                      <p className="text-xs text-[#8B7F6E] mb-3">Facultatif — collez la charte graphique de votre marque. Laissez vide pour utiliser les couleurs du thème.</p>
+                      <p className="text-xs text-[#8B7F6E] mb-3">Chaque élément peut avoir sa propre couleur — l'aperçu se met à jour en direct. Laissez vide pour utiliser les couleurs du thème.</p>
                       <div className="kt-card p-4 divide-y divide-[#1F1B16]/8">
-                        <ColorField label="Nom / Prénom"        value={cfg.profile.text_colors?.name || ""}  onChange={(v) => cfg.updateTextColors({ name: v })}  testid="color-name" />
-                        <ColorField label="Poste / Entreprise"  value={cfg.profile.text_colors?.job || ""}   onChange={(v) => cfg.updateTextColors({ job: v })}   testid="color-job" />
-                        <ColorField label="Bio / À propos"      value={cfg.profile.text_colors?.bio || ""}   onChange={(v) => cfg.updateTextColors({ bio: v })}   testid="color-bio" />
-                        <ColorField label="Bouton contact"      value={cfg.profile.text_colors?.cta || ""}   onChange={(v) => cfg.updateTextColors({ cta: v })}   testid="color-cta" />
-                        <ColorField label="Libellé des liens"   value={cfg.profile.text_colors?.links || ""} onChange={(v) => cfg.updateTextColors({ links: v })} testid="color-links" />
+                        <ColorField label="Prénom"              value={cfg.profile.text_colors?.first_name || ""} onChange={(v) => cfg.updateTextColors({ first_name: v })} testid="color-first-name" />
+                        <ColorField label="Nom"                 value={cfg.profile.text_colors?.last_name || ""}  onChange={(v) => cfg.updateTextColors({ last_name: v })}  testid="color-last-name" />
+                        <ColorField label="Poste"               value={cfg.profile.text_colors?.job || ""}        onChange={(v) => cfg.updateTextColors({ job: v })}        testid="color-job" />
+                        <ColorField label="Entreprise"          value={cfg.profile.text_colors?.company || ""}    onChange={(v) => cfg.updateTextColors({ company: v })}    testid="color-company" />
+                        <ColorField label="Bio / À propos"      value={cfg.profile.text_colors?.bio || ""}        onChange={(v) => cfg.updateTextColors({ bio: v })}        testid="color-bio" />
+                        <ColorField label="Bouton contact"      value={cfg.profile.text_colors?.cta || ""}        onChange={(v) => cfg.updateTextColors({ cta: v })}        testid="color-cta" />
+                        <ColorField label="Libellé des liens"   value={cfg.profile.text_colors?.links || ""}      onChange={(v) => cfg.updateTextColors({ links: v })}      testid="color-links" />
                       </div>
                     </div>
 
@@ -570,22 +572,31 @@ export default function Configurator() {
       {/* MOBILE FULL-SCREEN PREVIEW DIALOG */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="p-0 max-w-md bg-[#FAF7F0] border-[#1F1B16]/10 [&>button]:hidden" data-testid="mobile-preview-dialog">
-          <div className="relative p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="eyebrow">Aperçu en direct</p>
-                <p className="text-xs text-[#8B7F6E] mt-0.5">Vos choix en temps réel</p>
-              </div>
-              <button
-                onClick={() => setPreviewOpen(false)}
-                data-testid="mobile-preview-close"
-                className="w-9 h-9 rounded-full bg-white border border-[#1F1B16]/10 grid place-items-center active:scale-95 transition"
-                aria-label="Fermer"
-              >
-                <X size={16} />
-              </button>
+          {/* Header sticky avec bouton retour bien visible */}
+          <div className="sticky top-0 z-20 bg-[#FAF7F0]/95 backdrop-blur-md border-b border-[#1F1B16]/10 px-4 py-3 flex items-center justify-between">
+            <button
+              onClick={() => setPreviewOpen(false)}
+              data-testid="mobile-preview-back"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-[#1F1B16]/10 text-sm font-medium text-[#1F1B16] active:scale-95 transition"
+            >
+              <ArrowRight size={14} className="rotate-180" />
+              <span>Retour</span>
+            </button>
+            <div className="text-center">
+              <p className="text-[10px] uppercase tracking-widest text-[#8B7F6E] leading-none">Aperçu</p>
+              <p className="text-xs font-semibold text-amber-600 mt-1 leading-none">{formatEUR(total)}</p>
             </div>
+            <button
+              onClick={() => setPreviewOpen(false)}
+              data-testid="mobile-preview-close"
+              className="w-9 h-9 rounded-full bg-white border border-[#1F1B16]/10 grid place-items-center active:scale-95 transition"
+              aria-label="Fermer"
+            >
+              <X size={16} />
+            </button>
+          </div>
 
+          <div className="p-5">
             <div className="inline-flex rounded-full border border-[#1F1B16]/10 p-0.5 text-xs mb-4 bg-white">
               <button
                 onClick={() => setPreviewMode("profile")}
@@ -625,6 +636,16 @@ export default function Configurator() {
                 <span className="font-display font-bold text-lg gold-text">{formatEUR(total)}</span>
               </div>
             </div>
+
+            {/* Gros bouton retour en bas pour ne pas rater */}
+            <button
+              onClick={() => setPreviewOpen(false)}
+              data-testid="mobile-preview-back-bottom"
+              className="mt-5 w-full h-12 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#8B6508] text-white font-bold text-sm inline-flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition"
+            >
+              <ArrowRight size={16} className="rotate-180" />
+              Retour à la personnalisation
+            </button>
           </div>
         </DialogContent>
       </Dialog>

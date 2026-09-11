@@ -3,6 +3,12 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v3.3 — Couleurs granulaires + Persistance (Feb 2026)
+- **7 couleurs par élément** : Prénom · Nom · Poste · Entreprise · Bio · Bouton CTA · Libellé liens (fallback thème si vide)
+- **Mise à jour temps réel** : les 6 layouts (Hero, Card, List, Split, Gradient, Brutal) appliquent maintenant `text_colors` — helper `useColors(p,t)` centralisé
+- **Persistance localStorage** : clé `kt_configurator_state_v2` — le state (profil complet, shipping, contactEmail, product, quantity) survit à toute navigation ou rafraîchissement
+- **Mobile dialog aperçu** : bouton "Retour" en header sticky + gros bouton doré "Retour à la personnalisation" en bas + X classique — 3 sorties évidentes
+
 ## Design v3.2 — Personnalisation avancée + Admin B2B (Feb 2026)
 - **Couleurs perso par élément** : color pickers pour nom/prénom, poste, bio, bouton CTA, libellé réseaux — fallback thème si vide (`text_colors: Dict[str,str]` en base)
 - **Galerie 3-6 photos** : upload multiple sur Cloudinary via `/upload-avatar-guest` — rendu grid dans layout Hero uniquement (première photo en 2×2 si ≥ 3 photos)

@@ -51,16 +51,28 @@ export const LAYOUTS = [
   { id: "brutal",   name: "Brutalist",  desc: "Typo massive, bordures nettes" },
 ];
 
+/* Retourne les couleurs texte résolues (choix perso > thème par défaut). */
+function useColors(p, t) {
+  const tc = p.text_colors || {};
+  return {
+    first_name: tc.first_name || tc.name || undefined,
+    last_name:  tc.last_name  || tc.name || undefined,
+    job:        tc.job        || undefined,
+    company:    tc.company    || undefined,
+    tagline:    tc.tagline    || tc.bio || undefined,
+    bio:        tc.bio        || undefined,
+    cta:        tc.cta        || t.accent,
+    links:      tc.links      || undefined,
+  };
+}
+
 /* ============================================================
    1. HERO — photo edge-to-edge + name overlay
    ============================================================ */
 function LayoutHero({ p, t, onAction }) {
   const heroImg = p.hero_photo_url || p.avatar_url;
   const socials = socialsFilled(p.links);
-  const tc = p.text_colors || {};
-  const cName = tc.name || undefined;
-  const cJob = tc.job || undefined;
-  const cBio = tc.bio || undefined;
+  const c = useColors(p, t);
   const gallery = (p.gallery_urls || []).filter(Boolean);
   const order = (p.section_order && p.section_order.length)
     ? p.section_order
@@ -71,7 +83,7 @@ function LayoutHero({ p, t, onAction }) {
     about: (p.bio || p.tagline) ? (
       <div className="mx-5 mb-5 p-5 rounded-2xl" style={{ background: t.surface, border: `1px solid ${t.border}` }}>
         <p className="eyebrow mb-2" style={{ color: t.accent }}>À propos</p>
-        <p className="text-sm leading-relaxed" style={{ color: cBio }}>{p.bio || p.tagline}</p>
+        <p className="text-sm leading-relaxed" style={{ color: c.bio }}>{p.bio || p.tagline}</p>
       </div>
     ) : null,
     gallery: gallery.length > 0 ? (
@@ -86,8 +98,8 @@ function LayoutHero({ p, t, onAction }) {
         </div>
       </div>
     ) : null,
-    cta: <CTA t={t} onAction={onAction} tcCta={tc.cta} />,
-    socials: <SocialList socials={socials} p={p} t={t} tcLink={tc.links} />,
+    cta: <CTA t={t} onAction={onAction} tcCta={c.cta} />,
+    socials: <SocialList socials={socials} p={p} t={t} tcLink={c.links} />,
   };
 
   return (
@@ -97,9 +109,12 @@ function LayoutHero({ p, t, onAction }) {
                  : <div className="w-full h-full grid place-items-center font-display font-black" style={{ background: `linear-gradient(135deg, ${t.surface}, ${t.accent}22)`, color: t.accent, fontSize: 120 }}>{initialsOf(p)}</div>}
         <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.75) 100%)" }} />
         <div className="absolute left-0 right-0 bottom-0 p-6 text-white">
-          <h1 className="font-display font-black leading-[0.9] tracking-tight" style={{ fontSize: 42, color: cName }}>{(p.first_name || "PRÉNOM").toUpperCase()}<br />{(p.last_name || "NOM").toUpperCase()}</h1>
-          <p className="mt-2 text-sm font-medium opacity-90" style={{ color: cJob }}>{p.job_title || "Votre poste"}</p>
-          {p.company && <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur border border-white/30">{p.logo_url && <img src={p.logo_url} alt="" className="w-5 h-5 rounded object-contain bg-white/90 p-0.5" />}<span className="text-xs font-semibold">{p.company}</span></div>}
+          <h1 className="font-display font-black leading-[0.9] tracking-tight" style={{ fontSize: 42 }}>
+            <span style={{ color: c.first_name }}>{(p.first_name || "PRÉNOM").toUpperCase()}</span><br />
+            <span style={{ color: c.last_name }}>{(p.last_name || "NOM").toUpperCase()}</span>
+          </h1>
+          <p className="mt-2 text-sm font-medium opacity-90" style={{ color: c.job }}>{p.job_title || "Votre poste"}</p>
+          {p.company && <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur border border-white/30">{p.logo_url && <img src={p.logo_url} alt="" className="w-5 h-5 rounded object-contain bg-white/90 p-0.5" />}<span className="text-xs font-semibold" style={{ color: c.company }}>{p.company}</span></div>}
         </div>
       </div>
       {order.map((id) => <div key={id}>{sections[id]}</div>)}
@@ -114,6 +129,7 @@ function LayoutHero({ p, t, onAction }) {
 function LayoutCard({ p, t, onAction }) {
   const avatar = p.avatar_url || p.hero_photo_url;
   const socials = socialsFilled(p.links);
+  const c = useColors(p, t);
   return (
     <div className="w-full h-full overflow-y-auto no-scrollbar" style={{ background: `linear-gradient(160deg, ${t.accent}18 0%, ${t.bg} 40%)`, color: t.text }}>
       <div className="px-6 pt-12 pb-8">
@@ -125,15 +141,18 @@ function LayoutCard({ p, t, onAction }) {
               {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : initialsOf(p)}
             </div>
             {p.company && p.logo_url && <img src={p.logo_url} alt="" className="mx-auto mt-3 w-8 h-8 rounded object-contain" />}
-            <p className="eyebrow mt-4" style={{ color: t.accent }}>{p.company || "KalliTag"}</p>
-            <h1 className="mt-2 font-display font-bold" style={{ fontSize: 26, letterSpacing: "-0.02em" }}>{p.first_name || "Prénom"} {p.last_name || "Nom"}</h1>
-            <div className="mt-1 flex items-center justify-center gap-2 text-sm" style={{ color: t.subtle }}><span className="w-6 h-px" style={{ background: t.accent }} /><span>{p.job_title || "Votre poste"}</span><span className="w-6 h-px" style={{ background: t.accent }} /></div>
-            {(p.bio || p.tagline) && <p className="mt-4 text-sm italic leading-relaxed" style={{ color: t.subtle }}>« {p.bio || p.tagline} »</p>}
+            <p className="eyebrow mt-4" style={{ color: c.company || t.accent }}>{p.company || "KalliTag"}</p>
+            <h1 className="mt-2 font-display font-bold" style={{ fontSize: 26, letterSpacing: "-0.02em" }}>
+              <span style={{ color: c.first_name }}>{p.first_name || "Prénom"}</span>{" "}
+              <span style={{ color: c.last_name }}>{p.last_name || "Nom"}</span>
+            </h1>
+            <div className="mt-1 flex items-center justify-center gap-2 text-sm" style={{ color: c.job || t.subtle }}><span className="w-6 h-px" style={{ background: t.accent }} /><span>{p.job_title || "Votre poste"}</span><span className="w-6 h-px" style={{ background: t.accent }} /></div>
+            {(p.bio || p.tagline) && <p className="mt-4 text-sm italic leading-relaxed" style={{ color: c.bio || t.subtle }}>« {p.bio || p.tagline} »</p>}
             {(p.phone || p.email) && <div className="mt-5 space-y-1.5 text-sm">{p.phone && <a href={`tel:${p.phone}`} className="block hover:underline">{p.phone}</a>}{p.email && <a href={`mailto:${p.email}`} className="block hover:underline">{p.email}</a>}</div>}
           </div>
         </div>
         {socials.length > 0 && <div className="mt-6 flex flex-wrap justify-center gap-3">{socials.slice(0, 8).map((s) => (<a key={s.key} href={p.links[s.key]} target="_blank" rel="noopener" title={s.label} data-testid={`profile-social-${s.key}`} className="w-12 h-12 rounded-full grid place-items-center shadow-md transition hover:scale-110" style={{ background: socialColors[s.key] || t.accent, color: "#FFF" }}><s.icon size={18} /></a>))}</div>}
-        <CTA t={t} onAction={onAction} tight />
+        <CTA t={t} onAction={onAction} tight tcCta={c.cta} />
       </div>
       <Footer t={t} />
     </div>
@@ -146,6 +165,7 @@ function LayoutCard({ p, t, onAction }) {
 function LayoutList({ p, t, onAction }) {
   const avatar = p.avatar_url || p.hero_photo_url;
   const socials = socialsFilled(p.links);
+  const c = useColors(p, t);
   const buttons = [];
   if (p.phone) buttons.push({ icon: Phone, label: "Appeler", href: `tel:${p.phone}`, color: t.accent, k: "phone" });
   if (p.email) buttons.push({ icon: Mail, label: "Envoyer un email", href: `mailto:${p.email}`, color: t.accent, k: "mail" });
@@ -154,14 +174,17 @@ function LayoutList({ p, t, onAction }) {
     <div className="w-full h-full overflow-y-auto no-scrollbar" style={{ background: t.bg, color: t.text }}>
       <div className="pt-10 pb-5 px-6 text-center">
         <div className="mx-auto w-20 h-20 rounded-full overflow-hidden grid place-items-center font-display font-bold text-2xl" style={{ background: t.surface, color: t.accent, border: `2px solid ${t.accent}` }}>{avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : initialsOf(p)}</div>
-        <h1 className="mt-4 font-display font-bold text-xl">{p.first_name || "Prénom"} {p.last_name || "Nom"}</h1>
+        <h1 className="mt-4 font-display font-bold text-xl">
+          <span style={{ color: c.first_name }}>{p.first_name || "Prénom"}</span>{" "}
+          <span style={{ color: c.last_name }}>{p.last_name || "Nom"}</span>
+        </h1>
         <p className="text-xs mt-0.5" style={{ color: t.subtle }}>@{(p.first_name || "prenom").toLowerCase()}{(p.last_name || "nom").toLowerCase()}</p>
-        {p.company && <div className="mt-2 inline-flex items-center gap-1.5 text-xs" style={{ color: t.subtle }}>{p.logo_url && <img src={p.logo_url} alt="" className="w-4 h-4 rounded object-contain" />}<span>{p.job_title ? `${p.job_title} · ` : ""}{p.company}</span></div>}
-        {(p.bio || p.tagline) && <p className="mt-4 text-sm max-w-xs mx-auto">{p.bio || p.tagline}</p>}
+        {p.company && <div className="mt-2 inline-flex items-center gap-1.5 text-xs" style={{ color: c.company || t.subtle }}>{p.logo_url && <img src={p.logo_url} alt="" className="w-4 h-4 rounded object-contain" />}<span style={{ color: c.job || c.company || t.subtle }}>{p.job_title ? `${p.job_title} · ` : ""}</span><span>{p.company}</span></div>}
+        {(p.bio || p.tagline) && <p className="mt-4 text-sm max-w-xs mx-auto" style={{ color: c.bio }}>{p.bio || p.tagline}</p>}
       </div>
       <div className="px-5 pb-6 space-y-2.5">
-        <button onClick={() => onAction?.("vcard")} data-testid="profile-add-contact" className="w-full py-4 rounded-2xl font-bold text-sm inline-flex items-center justify-center gap-2 transition hover:scale-[1.02]" style={{ background: t.accent, color: t.isDark ? t.bg : "#FFFFFF", boxShadow: `0 8px 24px -8px ${t.accent}60` }}><Download size={16} /> Ajouter à mes contacts</button>
-        {buttons.map((b, i) => (<a key={i} href={b.href} target={b.href.startsWith("http") ? "_blank" : undefined} rel="noopener" data-testid={`profile-list-${b.k}-${i}`} className="w-full py-4 rounded-2xl font-semibold text-sm inline-flex items-center justify-center gap-2.5 transition hover:scale-[1.02]" style={{ background: t.surface, color: t.text, border: `1.5px solid ${t.border}` }}><b.icon size={17} style={{ color: b.color }} /><span>{b.label}</span></a>))}
+        <button onClick={() => onAction?.("vcard")} data-testid="profile-add-contact" className="w-full py-4 rounded-2xl font-bold text-sm inline-flex items-center justify-center gap-2 transition hover:scale-[1.02]" style={{ background: c.cta, color: t.isDark ? t.bg : "#FFFFFF", boxShadow: `0 8px 24px -8px ${c.cta}60` }}><Download size={16} /> Ajouter à mes contacts</button>
+        {buttons.map((b, i) => (<a key={i} href={b.href} target={b.href.startsWith("http") ? "_blank" : undefined} rel="noopener" data-testid={`profile-list-${b.k}-${i}`} className="w-full py-4 rounded-2xl font-semibold text-sm inline-flex items-center justify-center gap-2.5 transition hover:scale-[1.02]" style={{ background: t.surface, color: c.links || t.text, border: `1.5px solid ${t.border}` }}><b.icon size={17} style={{ color: b.color }} /><span>{b.label}</span></a>))}
       </div>
       <Footer t={t} />
     </div>
@@ -174,6 +197,7 @@ function LayoutList({ p, t, onAction }) {
 function LayoutSplit({ p, t, onAction }) {
   const heroImg = p.hero_photo_url || p.avatar_url;
   const socials = socialsFilled(p.links);
+  const c = useColors(p, t);
   return (
     <div className="w-full h-full overflow-y-auto no-scrollbar" style={{ background: t.bg, color: t.text }}>
       {/* Bloc photo diagonale top */}
@@ -183,20 +207,23 @@ function LayoutSplit({ p, t, onAction }) {
       </div>
       {/* Nom en gros qui déborde */}
       <div className="relative px-6 -mt-6 z-10">
-        <h1 className="font-display font-black leading-[0.9] tracking-tight" style={{ fontSize: 36, color: t.text }}>
-          {p.first_name || "Prénom"}<br />
-          <span style={{ color: t.accent }}>{p.last_name || "Nom"}</span>
+        <h1 className="font-display font-black leading-[0.9] tracking-tight" style={{ fontSize: 36 }}>
+          <span style={{ color: c.first_name || t.text }}>{p.first_name || "Prénom"}</span><br />
+          <span style={{ color: c.last_name || t.accent }}>{p.last_name || "Nom"}</span>
         </h1>
-        <p className="mt-2 text-sm font-medium" style={{ color: t.subtle }}>{p.job_title || "Votre poste"}{p.company ? ` @ ${p.company}` : ""}</p>
-        {(p.bio || p.tagline) && <p className="mt-4 text-sm leading-relaxed" style={{ color: t.text }}>{p.bio || p.tagline}</p>}
+        <p className="mt-2 text-sm font-medium" style={{ color: c.job || t.subtle }}>
+          {p.job_title || "Votre poste"}
+          {p.company ? <span style={{ color: c.company || c.job || t.subtle }}>{` @ ${p.company}`}</span> : ""}
+        </p>
+        {(p.bio || p.tagline) && <p className="mt-4 text-sm leading-relaxed" style={{ color: c.bio || t.text }}>{p.bio || p.tagline}</p>}
       </div>
       {/* Grid boutons carrés */}
       <div className="px-6 mt-6 grid grid-cols-2 gap-2">
-        {p.phone && <ActionSquare icon={Phone} label="Appeler" href={`tel:${p.phone}`} t={t} k="phone" />}
-        {p.email && <ActionSquare icon={Mail} label="Email" href={`mailto:${p.email}`} t={t} k="mail" />}
-        {socials.slice(0, 4).map((s) => <ActionSquare key={s.key} icon={s.icon} label={s.label} href={p.links[s.key]} t={t} color={socialColors[s.key]} k={s.key} />)}
+        {p.phone && <ActionSquare icon={Phone} label="Appeler" href={`tel:${p.phone}`} t={t} k="phone" tcLink={c.links} />}
+        {p.email && <ActionSquare icon={Mail} label="Email" href={`mailto:${p.email}`} t={t} k="mail" tcLink={c.links} />}
+        {socials.slice(0, 4).map((s) => <ActionSquare key={s.key} icon={s.icon} label={s.label} href={p.links[s.key]} t={t} color={socialColors[s.key]} k={s.key} tcLink={c.links} />)}
       </div>
-      <div className="px-6 mt-6"><CTA t={t} onAction={onAction} tight /></div>
+      <div className="px-6 mt-6"><CTA t={t} onAction={onAction} tight tcCta={c.cta} /></div>
       <Footer t={t} />
     </div>
   );
@@ -208,6 +235,8 @@ function LayoutSplit({ p, t, onAction }) {
 function LayoutGradient({ p, t, onAction }) {
   const socials = socialsFilled(p.links);
   const avatar = p.avatar_url;
+  const c = useColors(p, t);
+  const defaultNameColor = t.isDark ? "#FFFFFF" : t.text;
   return (
     <div className="w-full h-full overflow-y-auto no-scrollbar relative" style={{ background: `linear-gradient(155deg, ${t.accent} 0%, ${t.surface} 40%, ${t.bg} 100%)`, color: t.isDark ? "#FFF" : t.text }}>
       {/* Blur orbs animés */}
@@ -215,12 +244,13 @@ function LayoutGradient({ p, t, onAction }) {
       <div className="absolute top-1/2 -left-20 w-60 h-60 rounded-full blur-3xl opacity-30" style={{ background: t.accent }} />
       <div className="relative pt-16 pb-8 px-6 text-center">
         {avatar && <img src={avatar} alt="" className="mx-auto w-20 h-20 rounded-full object-cover border-2 mb-6" style={{ borderColor: "rgba(255,255,255,0.4)" }} />}
-        <p className="eyebrow mb-3" style={{ color: t.isDark ? "#FFFFFFAA" : t.accent }}>{p.company || "KalliTag"}</p>
-        <h1 className="font-display font-black leading-[0.85] tracking-tighter" style={{ fontSize: 46, color: t.isDark ? "#FFFFFF" : t.text }}>
-          {p.first_name || "Prénom"}<br />{p.last_name || "Nom"}
+        <p className="eyebrow mb-3" style={{ color: c.company || (t.isDark ? "#FFFFFFAA" : t.accent) }}>{p.company || "KalliTag"}</p>
+        <h1 className="font-display font-black leading-[0.85] tracking-tighter" style={{ fontSize: 46 }}>
+          <span style={{ color: c.first_name || defaultNameColor }}>{p.first_name || "Prénom"}</span><br />
+          <span style={{ color: c.last_name || defaultNameColor }}>{p.last_name || "Nom"}</span>
         </h1>
-        <p className="mt-4 text-sm font-medium" style={{ color: t.isDark ? "#FFFFFFCC" : t.subtle }}>{p.job_title || "Votre poste"}</p>
-        {(p.bio || p.tagline) && <p className="mt-5 text-sm max-w-[16rem] mx-auto leading-relaxed" style={{ color: t.isDark ? "#FFFFFFCC" : t.subtle }}>{p.bio || p.tagline}</p>}
+        <p className="mt-4 text-sm font-medium" style={{ color: c.job || (t.isDark ? "#FFFFFFCC" : t.subtle) }}>{p.job_title || "Votre poste"}</p>
+        {(p.bio || p.tagline) && <p className="mt-5 text-sm max-w-[16rem] mx-auto leading-relaxed" style={{ color: c.bio || (t.isDark ? "#FFFFFFCC" : t.subtle) }}>{p.bio || p.tagline}</p>}
       </div>
       {/* Boutons ronds glass */}
       <div className="flex justify-center gap-2.5 flex-wrap px-6 mb-6">
@@ -228,7 +258,7 @@ function LayoutGradient({ p, t, onAction }) {
         {p.email && <GlassBtn icon={Mail} href={`mailto:${p.email}`} isDark={t.isDark} k="mail" />}
         {socials.slice(0, 6).map((s) => <GlassBtn key={s.key} icon={s.icon} href={p.links[s.key]} isDark={t.isDark} k={s.key} />)}
       </div>
-      <div className="px-6"><button onClick={() => onAction?.("vcard")} data-testid="profile-add-contact" className="w-full py-4 rounded-full font-bold text-sm inline-flex items-center justify-center gap-2 transition backdrop-blur" style={{ background: t.isDark ? "rgba(255,255,255,0.95)" : t.text, color: t.isDark ? t.text : "#FFFFFF" }}><Download size={16} /> Ajouter à mes contacts</button></div>
+      <div className="px-6"><button onClick={() => onAction?.("vcard")} data-testid="profile-add-contact" className="w-full py-4 rounded-full font-bold text-sm inline-flex items-center justify-center gap-2 transition backdrop-blur" style={{ background: c.cta && c.cta !== t.accent ? c.cta : (t.isDark ? "rgba(255,255,255,0.95)" : t.text), color: c.cta && c.cta !== t.accent ? "#FFF" : (t.isDark ? t.text : "#FFFFFF") }}><Download size={16} /> Ajouter à mes contacts</button></div>
       <Footer t={{ ...t, subtle: t.isDark ? "#FFFFFF80" : t.subtle }} />
     </div>
   );
@@ -240,15 +270,17 @@ function LayoutGradient({ p, t, onAction }) {
 function LayoutBrutal({ p, t, onAction }) {
   const socials = socialsFilled(p.links);
   const avatar = p.hero_photo_url || p.avatar_url;
+  const c = useColors(p, t);
+  const defaultNameColor = t.isDark ? t.bg : "#FFFFFF";
   return (
     <div className="w-full h-full overflow-y-auto no-scrollbar" style={{ background: t.bg, color: t.text }}>
       {/* Header noir/accent avec typo écrasée */}
       <div className="border-b-4 p-6" style={{ borderColor: t.text, background: t.accent }}>
         <p className="font-mono text-[10px] tracking-widest uppercase" style={{ color: t.isDark ? t.bg : "#FFFFFF" }}>KALLITAG // {new Date().getFullYear()}</p>
-        <h1 className="mt-2 font-display font-black leading-[0.8] tracking-tighter" style={{ fontSize: 56, color: t.isDark ? t.bg : "#FFFFFF" }}>
+        <h1 className="mt-2 font-display font-black leading-[0.8] tracking-tighter" style={{ fontSize: 56, color: c.first_name || defaultNameColor }}>
           {(p.first_name || "PRÉNOM").toUpperCase()}
         </h1>
-        <h1 className="font-display font-black leading-[0.8] tracking-tighter" style={{ fontSize: 56, color: t.isDark ? t.bg : "#FFFFFF", WebkitTextStroke: `2px ${t.isDark ? t.bg : "#FFFFFF"}`, WebkitTextFillColor: "transparent" }}>
+        <h1 className="font-display font-black leading-[0.8] tracking-tighter" style={{ fontSize: 56, color: c.last_name || defaultNameColor, WebkitTextStroke: `2px ${c.last_name || defaultNameColor}`, WebkitTextFillColor: "transparent" }}>
           {(p.last_name || "NOM").toUpperCase()}
         </h1>
       </div>
@@ -256,17 +288,17 @@ function LayoutBrutal({ p, t, onAction }) {
         {avatar && <div className="border-4 aspect-square overflow-hidden" style={{ borderColor: t.text }}><img src={avatar} alt="" className="w-full h-full object-cover grayscale" /></div>}
         <div className="border-4 p-4" style={{ borderColor: t.text }}>
           <p className="font-mono text-[10px] tracking-widest uppercase" style={{ color: t.subtle }}>POSTE</p>
-          <p className="font-display font-bold text-lg mt-1">{p.job_title || "Votre poste"}</p>
-          {p.company && <><p className="font-mono text-[10px] tracking-widest uppercase mt-3" style={{ color: t.subtle }}>ORGA</p><p className="font-display font-bold text-lg mt-1">{p.company}</p></>}
+          <p className="font-display font-bold text-lg mt-1" style={{ color: c.job }}>{p.job_title || "Votre poste"}</p>
+          {p.company && <><p className="font-mono text-[10px] tracking-widest uppercase mt-3" style={{ color: t.subtle }}>ORGA</p><p className="font-display font-bold text-lg mt-1" style={{ color: c.company }}>{p.company}</p></>}
         </div>
-        {(p.bio || p.tagline) && <div className="border-4 p-4" style={{ borderColor: t.text }}><p className="font-mono text-[10px] tracking-widest uppercase" style={{ color: t.subtle }}>À PROPOS</p><p className="text-sm mt-2 leading-relaxed">{p.bio || p.tagline}</p></div>}
-        <button onClick={() => onAction?.("vcard")} data-testid="profile-add-contact" className="w-full py-5 border-4 font-display font-black text-xl uppercase transition hover:scale-[0.98]" style={{ borderColor: t.text, background: t.text, color: t.bg }}>▸ SAUVEGARDER</button>
+        {(p.bio || p.tagline) && <div className="border-4 p-4" style={{ borderColor: t.text }}><p className="font-mono text-[10px] tracking-widest uppercase" style={{ color: t.subtle }}>À PROPOS</p><p className="text-sm mt-2 leading-relaxed" style={{ color: c.bio }}>{p.bio || p.tagline}</p></div>}
+        <button onClick={() => onAction?.("vcard")} data-testid="profile-add-contact" className="w-full py-5 border-4 font-display font-black text-xl uppercase transition hover:scale-[0.98]" style={{ borderColor: t.text, background: c.cta && c.cta !== t.accent ? c.cta : t.text, color: c.cta && c.cta !== t.accent ? "#FFF" : t.bg }}>▸ SAUVEGARDER</button>
         {socials.length > 0 && (
           <div className="grid grid-cols-3 gap-0 border-4" style={{ borderColor: t.text }}>
             {socials.map((s, i) => (
               <a key={s.key} href={p.links[s.key]} target="_blank" rel="noopener" data-testid={`profile-brutal-${s.key}`}
                  className="aspect-square grid place-items-center transition hover:scale-95"
-                 style={{ background: i % 2 === 0 ? t.surface : t.accent, color: i % 2 === 0 ? t.text : (t.isDark ? t.bg : "#FFF"), borderRight: `${i % 3 !== 2 ? 4 : 0}px solid ${t.text}`, borderBottom: `${i < socials.length - 3 ? 4 : 0}px solid ${t.text}` }}>
+                 style={{ background: i % 2 === 0 ? t.surface : t.accent, color: c.links || (i % 2 === 0 ? t.text : (t.isDark ? t.bg : "#FFF")), borderRight: `${i % 3 !== 2 ? 4 : 0}px solid ${t.text}`, borderBottom: `${i < socials.length - 3 ? 4 : 0}px solid ${t.text}` }}>
                 <s.icon size={24} />
               </a>
             ))}
@@ -322,12 +354,12 @@ const SocialList = ({ socials, p, t, tcLink }) => socials.length === 0 ? null : 
   </div>
 );
 
-const ActionSquare = ({ icon: Icon, label, href, t, color, k }) => (
+const ActionSquare = ({ icon: Icon, label, href, t, color, k, tcLink }) => (
   <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noopener" data-testid={`profile-square-${k}`}
      className="aspect-square rounded-2xl p-4 flex flex-col justify-between transition hover:scale-[0.97]"
      style={{ background: t.surface, border: `1px solid ${t.border}` }}>
     <Icon size={22} style={{ color: color || t.accent }} />
-    <span className="text-xs font-semibold" style={{ color: t.text }}>{label}</span>
+    <span className="text-xs font-semibold" style={{ color: tcLink || t.text }}>{label}</span>
   </a>
 );
 
