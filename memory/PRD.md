@@ -3,6 +3,14 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v3.5 — Admin classification revenus (Feb 2026)
+- **4 statuts par commande** : `counted` (défaut) · `gift` · `refunded` · `cancelled` — champ `revenue_status` en base
+- **CA net dynamique** : `/api/admin/stats` exclut les statuts non-counted du calcul revenue_cents — testé : 39,90 € → 0,00 € après passage en "Offerte"
+- **Endpoint** `POST /admin/orders/{id}/revenue-status` (Bearer admin) avec whitelist statuts
+- **UI Admin** : dropdown par ligne, badge coloré (Offerte vert / Remboursée violet / Annulée rouge), montant barré + ligne dimmée si exclue
+- **Résumé exclusions** : bande sous les stats "Exclus du CA : N offerts · N remboursés · N annulés"
+- **Label CA renommé** "CA net" avec hint "hors offerts / remboursés / annulés"
+
 ## Design v3.4 — Cadrage, Compression, Galerie (Feb 2026)
 - **Cadrage cohérent preview/public** : `objectPosition: "center 25%"` sur photo hero (Hero + Split) → visages du tiers supérieur toujours visibles indépendamment de la largeur (300px preview vs 390-448px public)
 - **Compression client automatique** : helper `/app/frontend/src/lib/imageCompress.js` (canvas resize + JPEG re-encode) — avatar 800px, hero 1600px, logo 512px (PNG transparency preservée), galerie 1200px, qualité 82-90%

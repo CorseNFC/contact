@@ -1203,20 +1203,54 @@ async def admin_login(payload: Dict[str, str]):
 
 @api_router.get("/admin/stats")
 async def admin_stats(admin=Depends(require_admin)):
+    # Only "counted" (or missing = legacy) revenue statuses contribute to CA
+    counted_filter = {
+        "payment_status": "paid",
+        "$or": [{"revenue_status": {"$exists": False}}, {"revenue_status": "counted"}],
+    }
     paid = orders_col.count_documents({"payment_status": "paid"})
-    to_ship = orders_col.count_documents({"payment_status": "paid", "shipped": {"$ne": True}})
+    to_ship = orders_col.count_documents({**counted_filter, "shipped": {"$ne": True}})
     unclaimed = orders_col.count_documents({"status": "unclaimed"})
     active_subs = subscriptions_col.count_documents({"status": {"$in": ["active", "trialing"]}})
+
     revenue_cents = 0
-    for o in orders_col.find({"payment_status": "paid"}, {"amount_cents": 1, "_id": 0}):
+    for o in orders_col.find(counted_filter, {"amount_cents": 1, "_id": 0}):
         revenue_cents += int(o.get("amount_cents") or 0)
+
+    # Breakdown so the admin can see what was excluded
+    excluded_counts = {
+        "gift":      orders_col.count_documents({"payment_status": "paid", "revenue_status": "gift"}),
+        "refunded":  orders_col.count_documents({"payment_status": "paid", "revenue_status": "refunded"}),
+        "cancelled": orders_col.count_documents({"payment_status": "paid", "revenue_status": "cancelled"}),
+    }
+
     total_scans = scans_col.estimated_document_count()
     total_leads = leads_col.estimated_document_count()
     return {
         "paid_orders": paid, "to_ship": to_ship, "unclaimed": unclaimed,
         "revenue_cents": revenue_cents, "active_subs": active_subs,
         "total_scans": total_scans, "total_leads": total_leads,
+        "excluded_counts": excluded_counts,
     }
+
+
+class AdminRevenueStatusIn(BaseModel):
+    status: str = "counted"  # counted | refunded | cancelled | gift
+
+
+@api_router.post("/admin/orders/{order_id}/revenue-status")
+async def admin_set_revenue_status(order_id: str, body: AdminRevenueStatusIn, admin=Depends(require_admin)):
+    allowed = {"counted", "refunded", "cancelled", "gift"}
+    if body.status not in allowed:
+        raise HTTPException(400, f"Statut invalide (attendu : {sorted(allowed)})")
+    r = orders_col.update_one({"order_id": order_id}, {"$set": {
+        "revenue_status": body.status,
+        "revenue_status_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }})
+    if r.matched_count == 0:
+        raise HTTPException(404, "Commande introuvable")
+    return {"status": "ok", "revenue_status": body.status}
 
 
 @api_router.get("/admin/orders")

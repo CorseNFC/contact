@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, Package, TrendingUp, Copy, Check, ExternalLink, Truck, RefreshCw, Download, LogOut } from "lucide-react";
-import { adminLogin, adminStats, adminOrders, adminMarkShipped, adminUnship, adminExportUrl, getAdminToken, setAdminToken, clearAdminToken } from "@/lib/api";
+import { Loader2, ShieldCheck, Package, TrendingUp, Copy, Check, ExternalLink, Truck, RefreshCw, Download, LogOut, Gift, XCircle, Undo2, RotateCcw } from "lucide-react";
+import { adminLogin, adminStats, adminOrders, adminMarkShipped, adminUnship, adminSetRevenueStatus, adminExportUrl, getAdminToken, setAdminToken, clearAdminToken } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -57,6 +57,15 @@ export default function Admin() {
     try { await adminUnship(o.order_id); load(); } catch { toast.error("Erreur"); }
   };
 
+  const setRevenueStatus = async (o, status) => {
+    const labels = { counted: "compté dans le CA", gift: "offert / gratuit", refunded: "remboursé", cancelled: "annulé" };
+    try {
+      await adminSetRevenueStatus(o.order_id, status);
+      toast.success(`Commande marquée : ${labels[status]}`);
+      load();
+    } catch { toast.error("Erreur mise à jour"); }
+  };
+
   const downloadCsv = async () => {
     // fetch with header, then trigger download
     const r = await fetch(adminExportUrl(), { headers: { "X-Admin-Token": getAdminToken() } });
@@ -108,14 +117,24 @@ export default function Admin() {
         </div>
 
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-8" data-testid="admin-stats">
-            <Card label="Commandes payées" value={stats.paid_orders} testid="stat-paid" />
-            <Card label="À expédier" value={stats.to_ship} accent testid="stat-toship" />
-            <Card label="Non réclamées" value={stats.unclaimed} testid="stat-unclaimed" />
-            <Card label="Chiffre d'affaires" value={formatEUR(stats.revenue_cents)} testid="stat-revenue" />
-            <Card label="Abonnés Pro" value={stats.active_subs} testid="stat-pro" />
-            <Card label="Scans NFC" value={stats.total_scans} testid="stat-scans" />
-          </div>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-3" data-testid="admin-stats">
+              <Card label="Commandes payées" value={stats.paid_orders} testid="stat-paid" />
+              <Card label="À expédier" value={stats.to_ship} accent testid="stat-toship" />
+              <Card label="Non réclamées" value={stats.unclaimed} testid="stat-unclaimed" />
+              <Card label="CA net" value={formatEUR(stats.revenue_cents)} testid="stat-revenue" hint="hors offerts / remboursés / annulés" />
+              <Card label="Abonnés Pro" value={stats.active_subs} testid="stat-pro" />
+              <Card label="Scans NFC" value={stats.total_scans} testid="stat-scans" />
+            </div>
+            {stats.excluded_counts && (stats.excluded_counts.gift + stats.excluded_counts.refunded + stats.excluded_counts.cancelled > 0) && (
+              <div className="mb-8 text-[11px] text-slate-400 flex flex-wrap gap-3" data-testid="excluded-summary">
+                <span>Exclus du CA :</span>
+                {stats.excluded_counts.gift > 0 && <span className="text-emerald-300"><Gift size={11} className="inline -mt-0.5 mr-1" />{stats.excluded_counts.gift} offert{stats.excluded_counts.gift > 1 ? "s" : ""}</span>}
+                {stats.excluded_counts.refunded > 0 && <span className="text-purple-300"><Undo2 size={11} className="inline -mt-0.5 mr-1" />{stats.excluded_counts.refunded} remboursé{stats.excluded_counts.refunded > 1 ? "s" : ""}</span>}
+                {stats.excluded_counts.cancelled > 0 && <span className="text-red-300"><XCircle size={11} className="inline -mt-0.5 mr-1" />{stats.excluded_counts.cancelled} annulé{stats.excluded_counts.cancelled > 1 ? "s" : ""}</span>}
+              </div>
+            )}
+          </>
         )}
 
         <div className="flex gap-2 mb-4 flex-wrap">
@@ -150,8 +169,10 @@ export default function Admin() {
                   const isShipped = !!o.shipped;
                   const isBulk = !!o.is_bulk;
                   const bulkUrls = o.nfc_urls || [];
+                  const rev = o.revenue_status || "counted";
+                  const isExcluded = rev !== "counted";
                   return (
-                    <tr key={o.order_id} className="border-b border-white/5" data-testid={`order-row-${o.order_id}`}>
+                    <tr key={o.order_id} className={`border-b border-white/5 ${isExcluded ? "opacity-55" : ""}`} data-testid={`order-row-${o.order_id}`}>
                       <td className="p-3 whitespace-nowrap text-slate-400">{new Date(o.created_at).toLocaleDateString("fr-FR")}<br /><span className="text-[10px] text-slate-600">{new Date(o.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span></td>
                       <td className="p-3">
                         <p className="font-medium">{isBulk ? (o.company_name || `Pack ${bulkUrls.length} cartes`) : `${prof.first_name || ""} ${prof.last_name || ""}`}</p>
@@ -205,7 +226,10 @@ export default function Admin() {
                           </div>
                         )}
                       </td>
-                      <td className="p-3 text-right font-medium">{formatEUR(o.amount_cents)}</td>
+                      <td className="p-3 text-right font-medium">
+                        <span className={isExcluded ? "line-through text-slate-500" : ""}>{formatEUR(o.amount_cents)}</span>
+                        {isExcluded && <RevenueBadge status={rev} />}
+                      </td>
                       <td className="p-3 text-center">
                         {isShipped ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-400 border border-emerald-400/40 rounded-full px-2 py-0.5">
@@ -219,14 +243,30 @@ export default function Admin() {
                           <span className="inline-flex text-[10px] font-medium text-slate-500 border border-white/10 rounded-full px-2 py-0.5">{o.payment_status}</span>
                         )}
                       </td>
-                      <td className="p-3 text-right whitespace-nowrap">
-                        {o.payment_status === "paid" && (
-                          isShipped
-                            ? <button onClick={() => unship(o)} className="text-[11px] text-slate-500 hover:text-red-400" data-testid={`unship-${o.order_id}`}>Annuler</button>
-                            : <button onClick={() => markShipped(o)} className="text-[11px] text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1" data-testid={`ship-${o.order_id}`}>
-                                <Truck size={11} /> Expédier
-                              </button>
-                        )}
+                      <td className="p-3 whitespace-nowrap">
+                        <div className="flex flex-col items-end gap-1.5">
+                          {o.payment_status === "paid" && (
+                            isShipped
+                              ? <button onClick={() => unship(o)} className="text-[11px] text-slate-500 hover:text-red-400" data-testid={`unship-${o.order_id}`}>Annuler expé.</button>
+                              : <button onClick={() => markShipped(o)} className="text-[11px] text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1" data-testid={`ship-${o.order_id}`}>
+                                  <Truck size={11} /> Expédier
+                                </button>
+                          )}
+                          {o.payment_status === "paid" && (
+                            <select
+                              value={rev}
+                              onChange={(e) => setRevenueStatus(o, e.target.value)}
+                              data-testid={`revenue-status-${o.order_id}`}
+                              className="text-[10px] bg-slate-900 border border-white/10 rounded-md px-1.5 py-1 text-slate-300 hover:border-amber-400/60 focus:border-amber-400 focus:outline-none cursor-pointer"
+                              title="Comptabilisation dans le chiffre d'affaires"
+                            >
+                              <option value="counted">✓ Comptée</option>
+                              <option value="gift">🎁 Offerte</option>
+                              <option value="refunded">↩ Remboursée</option>
+                              <option value="cancelled">✕ Annulée</option>
+                            </select>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -244,9 +284,25 @@ export default function Admin() {
   );
 }
 
-const Card = ({ label, value, accent, testid }) => (
+const RevenueBadge = ({ status }) => {
+  const map = {
+    gift:      { label: "Offerte",    color: "emerald", Icon: Gift },
+    refunded:  { label: "Remboursée", color: "purple",  Icon: Undo2 },
+    cancelled: { label: "Annulée",    color: "red",     Icon: XCircle },
+  };
+  const c = map[status]; if (!c) return null;
+  const cls = { emerald: "text-emerald-300 border-emerald-400/40", purple: "text-purple-300 border-purple-400/40", red: "text-red-300 border-red-400/40" }[c.color];
+  return (
+    <span className={`ml-2 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider border rounded-full px-1.5 py-0.5 ${cls}`}>
+      <c.Icon size={10} /> {c.label}
+    </span>
+  );
+};
+
+const Card = ({ label, value, accent, testid, hint }) => (
   <div className={`kt-card p-4 ${accent ? "border-amber-400/60" : ""}`}>
     <p className="text-[10px] text-slate-500 uppercase tracking-wider">{label}</p>
     <p className={`mt-1 font-display font-bold text-2xl ${accent ? "gold-text" : ""}`} data-testid={testid}>{value}</p>
+    {hint && <p className="text-[9px] text-slate-600 mt-0.5">{hint}</p>}
   </div>
 );

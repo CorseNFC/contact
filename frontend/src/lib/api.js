@@ -51,6 +51,7 @@ export const adminStats = async () => (await api.get("/admin/stats", { headers: 
 export const adminOrders = async (status = "") => (await api.get(`/admin/orders${status ? `?status=${status}` : ""}`, { headers: adminHeaders() })).data;
 export const adminMarkShipped = async (orderId, note = "") => (await api.post(`/admin/orders/${orderId}/mark-shipped`, { note }, { headers: adminHeaders() })).data;
 export const adminUnship = async (orderId) => (await api.post(`/admin/orders/${orderId}/unship`, {}, { headers: adminHeaders() })).data;
+export const adminSetRevenueStatus = async (orderId, status) => (await api.post(`/admin/orders/${orderId}/revenue-status`, { status }, { headers: adminHeaders() })).data;
 export const adminExportUrl = () => `${API}/admin/orders/export.csv`;
 
 export const requestMagicLink = async (email, origin_url) => (await api.post("/auth/request-link", { email, origin_url })).data;
