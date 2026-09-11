@@ -43,12 +43,12 @@ const initialsOf = (p) => `${p.first_name?.[0] || ""}${p.last_name?.[0] || ""}`.
    BIBLIOTHÈQUE DE LAYOUTS — 6 mises en page radicalement différentes
    ======================================================================== */
 export const LAYOUTS = [
-  { id: "hero",     name: "Hero",       desc: "Photo plein cadre magazine",  emoji: "📸" },
-  { id: "card",     name: "Carte",      desc: "Carton d'invitation doré",    emoji: "💎" },
-  { id: "list",     name: "Liste",      desc: "Linktree mobile-first",       emoji: "📱" },
-  { id: "split",    name: "Split",      desc: "50/50 dynamique couleur",     emoji: "◐" },
-  { id: "gradient", name: "Gradient",   desc: "Immersif dégradé animé",      emoji: "🌈" },
-  { id: "brutal",   name: "Brutalist",  desc: "Typo massive, bordures nettes", emoji: "⬛" },
+  { id: "hero",     name: "Hero",       desc: "Photo plein cadre magazine" },
+  { id: "card",     name: "Carte",      desc: "Carton d'invitation doré" },
+  { id: "list",     name: "Liste",      desc: "Linktree mobile-first" },
+  { id: "split",    name: "Split",      desc: "50/50 dynamique couleur" },
+  { id: "gradient", name: "Gradient",   desc: "Immersif dégradé animé" },
+  { id: "brutal",   name: "Brutalist",  desc: "Typo massive, bordures nettes" },
 ];
 
 /* ============================================================

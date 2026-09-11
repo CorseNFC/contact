@@ -3,6 +3,12 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v3.1 — UX Mobile Configurateur (Feb 2026)
+- **Aperçu sticky mobile** : mini-thumbnail live + résumé (thème, layout, finition, prix) + bouton "Aperçu" en haut de page sur mobile — toujours visible pendant scroll
+- **Dialog plein écran** : tap sur "Aperçu" ouvre modale avec phone frame complet + tabs Profil/Carte + résumé commande
+- **Sélection carte physique** : badge doré ✓ (dégradé D4AF37→8B6508) + ring-2 amber-500 + label "SÉLECTIONNÉ"
+- **Icônes layouts** : remplacé emojis arc-en-ciel par 6 wireframes SVG monochromes cream/gold (`/app/frontend/src/components/LayoutIcon.jsx`) — style premium cohérent
+
 ## Design v3 — Bibliothèque riche
 - **8 thèmes** (Onyx, Ivoire, Midnight, Rose Nude, Neon, Forêt, Champagne, Mono)
 - **6 layouts** (Hero, Carte, Liste, Split, Gradient, Brutalist)
