@@ -6,7 +6,7 @@ import { ArrowRight, Check, Loader2, Smartphone, CreditCard as CardIcon } from "
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CardPreview from "@/components/CardPreview";
-import ProfilePreview from "@/components/ProfilePreview";
+import ProfilePreview, { LAYOUTS } from "@/components/ProfilePreview";
 import ThemeThumb from "@/components/ThemeThumb";
 import DropZone from "@/components/DropZone";
 import { useConfig } from "@/context/ConfigContext";
@@ -131,8 +131,8 @@ export default function Configurator() {
                 </div>
 
                 <div>
-                  <h2 className="font-display font-semibold text-xl mb-1">3. Thème de votre page profil</h2>
-                  <p className="text-xs text-[#6B5F4E] mb-4">Vous pourrez le modifier à tout moment depuis votre espace.</p>
+                  <h2 className="font-display font-semibold text-xl mb-1">3. Thème visuel · <span className="text-[#8B7F6E] text-sm font-normal">8 palettes</span></h2>
+                  <p className="text-xs text-[#6B5F4E] mb-4">Modifiable à tout moment depuis votre espace.</p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {data.themes.map((t) => (
                       <button
@@ -141,27 +141,24 @@ export default function Configurator() {
                         data-testid={`theme-${t.id}`}
                         className="text-left"
                       >
-                        <ThemeThumb themeId={t.id} label={t.name} active={cfg.profile.theme_id === t.id} />
+                        <ThemeThumb themeId={t.id} label={t.name} vibe={t.vibe} active={cfg.profile.theme_id === t.id} />
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <h2 className="font-display font-semibold text-xl mb-1">4. Layout de votre page profil</h2>
-                  <p className="text-xs text-[#6B5F4E] mb-4">Choisissez la mise en page — modifiable à tout moment.</p>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { id: "hero", name: "Hero", desc: "Photo plein cadre, moderne" },
-                      { id: "classic", name: "Classique", desc: "Portrait rond, élégant" },
-                      { id: "minimal", name: "Minimal", desc: "Épuré, grille d'actions" },
-                    ].map((l) => (
+                  <h2 className="font-display font-semibold text-xl mb-1">4. Mise en page · <span className="text-[#8B7F6E] text-sm font-normal">6 layouts</span></h2>
+                  <p className="text-xs text-[#6B5F4E] mb-4">Chaque layout a une composition différente. Cliquez pour voir l'aperçu.</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {LAYOUTS.map((l) => (
                       <button
                         key={l.id}
-                        onClick={() => cfg.updateProfile({ layout_id: l.id })}
+                        onClick={() => { cfg.updateProfile({ layout_id: l.id }); setPreviewMode("profile"); }}
                         data-testid={`layout-${l.id}`}
-                        className={`kt-card p-4 text-left transition ${cfg.profile.layout_id === l.id ? "border-amber-500/60 ring-1 ring-amber-500/30" : ""}`}
+                        className={`kt-card p-4 text-left transition ${cfg.profile.layout_id === l.id ? "border-amber-500/60 ring-2 ring-amber-500/40" : ""}`}
                       >
+                        <div className="text-2xl mb-1">{l.emoji}</div>
                         <p className="text-sm font-semibold">{l.name}</p>
                         <p className="text-[11px] text-[#8B7F6E] leading-snug mt-1">{l.desc}</p>
                       </button>
