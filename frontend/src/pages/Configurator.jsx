@@ -90,17 +90,17 @@ export default function Configurator() {
           {/* MOBILE ONLY — Sticky mini-preview bar (visible en permanence) */}
           <div className="lg:hidden sticky top-16 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2.5 bg-[#FAF7F0]/95 backdrop-blur-md border-y border-[#1F1B16]/10 shadow-sm" data-testid="mobile-sticky-preview">
             <div className="flex items-center gap-3">
-              {/* Mini live thumbnail */}
+              {/* Mini live thumbnail — plus grand pour vraiment voir ses choix */}
               <button
                 onClick={() => setPreviewOpen(true)}
                 data-testid="mobile-preview-thumb"
-                className="flex-shrink-0 w-14 h-[72px] rounded-lg overflow-hidden border border-[#1F1B16]/12 shadow-sm bg-white relative"
+                className="flex-shrink-0 w-[74px] h-[110px] rounded-xl overflow-hidden border border-[#1F1B16]/15 shadow-md bg-white relative"
                 aria-label="Voir l'aperçu en grand"
               >
-                <div className="absolute inset-0 pointer-events-none" style={{ transform: "scale(0.19)", transformOrigin: "top left", width: 300, height: 380 }}>
+                <div className="absolute inset-0 pointer-events-none" style={{ transform: "scale(0.28)", transformOrigin: "top left", width: 300, height: 500 }}>
                   <ProfilePreview profile={cfg.profile} framed={false} />
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-transparent pointer-events-none" />
               </button>
               <div className="flex-1 min-w-0">
                 <p className="eyebrow text-[9px] leading-none mb-0.5">Votre aperçu</p>
@@ -214,7 +214,7 @@ export default function Configurator() {
                               <Check size={13} strokeWidth={3} className="text-white" />
                             </div>
                           )}
-                          <div className="w-full aspect-[4/5] max-h-28 mx-auto mb-2 flex items-center justify-center">
+                          <div className="w-10 h-[52px] mb-2 flex items-center justify-center">
                             <LayoutIcon id={l.id} active={active} className="w-full h-full" />
                           </div>
                           <p className="text-sm font-semibold">{l.name}</p>
