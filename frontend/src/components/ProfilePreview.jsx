@@ -43,12 +43,12 @@ const initialsOf = (p) => `${p.first_name?.[0] || ""}${p.last_name?.[0] || ""}`.
    BIBLIOTHÈQUE DE LAYOUTS — 6 mises en page radicalement différentes
    ======================================================================== */
 export const LAYOUTS = [
-  { id: "hero",     name: "Hero",       desc: "Photo plein cadre magazine",  emoji: "📸" },
-  { id: "card",     name: "Carte",      desc: "Carton d'invitation doré",    emoji: "💎" },
-  { id: "list",     name: "Liste",      desc: "Linktree mobile-first",       emoji: "📱" },
-  { id: "split",    name: "Split",      desc: "50/50 dynamique couleur",     emoji: "◐" },
-  { id: "gradient", name: "Gradient",   desc: "Immersif dégradé animé",      emoji: "🌈" },
-  { id: "brutal",   name: "Brutalist",  desc: "Typo massive, bordures nettes", emoji: "⬛" },
+  { id: "hero",     name: "Hero",       desc: "Photo plein cadre magazine" },
+  { id: "card",     name: "Carte",      desc: "Carton d'invitation doré" },
+  { id: "list",     name: "Liste",      desc: "Linktree mobile-first" },
+  { id: "split",    name: "Split",      desc: "50/50 dynamique couleur" },
+  { id: "gradient", name: "Gradient",   desc: "Immersif dégradé animé" },
+  { id: "brutal",   name: "Brutalist",  desc: "Typo massive, bordures nettes" },
 ];
 
 /* ============================================================
@@ -57,6 +57,39 @@ export const LAYOUTS = [
 function LayoutHero({ p, t, onAction }) {
   const heroImg = p.hero_photo_url || p.avatar_url;
   const socials = socialsFilled(p.links);
+  const tc = p.text_colors || {};
+  const cName = tc.name || undefined;
+  const cJob = tc.job || undefined;
+  const cBio = tc.bio || undefined;
+  const gallery = (p.gallery_urls || []).filter(Boolean);
+  const order = (p.section_order && p.section_order.length)
+    ? p.section_order
+    : ["quick", "about", "gallery", "cta", "socials"];
+
+  const sections = {
+    quick: <QuickRow p={p} t={t} offset />,
+    about: (p.bio || p.tagline) ? (
+      <div className="mx-5 mb-5 p-5 rounded-2xl" style={{ background: t.surface, border: `1px solid ${t.border}` }}>
+        <p className="eyebrow mb-2" style={{ color: t.accent }}>À propos</p>
+        <p className="text-sm leading-relaxed" style={{ color: cBio }}>{p.bio || p.tagline}</p>
+      </div>
+    ) : null,
+    gallery: gallery.length > 0 ? (
+      <div className="mx-5 mb-5">
+        <p className="eyebrow mb-2" style={{ color: t.accent }}>Galerie</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {gallery.slice(0, 6).map((src, i) => (
+            <div key={i} className={`overflow-hidden rounded-lg ${i === 0 && gallery.length >= 3 ? "col-span-2 row-span-2 aspect-square" : "aspect-square"}`} style={{ border: `1px solid ${t.border}` }}>
+              <img src={src} alt="" className="w-full h-full object-cover" onError={(e) => (e.target.style.display = "none")} />
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null,
+    cta: <CTA t={t} onAction={onAction} tcCta={tc.cta} />,
+    socials: <SocialList socials={socials} p={p} t={t} tcLink={tc.links} />,
+  };
+
   return (
     <div className="w-full h-full overflow-y-auto no-scrollbar" style={{ background: t.bg, color: t.text }}>
       <div className="relative w-full aspect-[4/5] overflow-hidden" style={{ background: t.surface }}>
@@ -64,15 +97,12 @@ function LayoutHero({ p, t, onAction }) {
                  : <div className="w-full h-full grid place-items-center font-display font-black" style={{ background: `linear-gradient(135deg, ${t.surface}, ${t.accent}22)`, color: t.accent, fontSize: 120 }}>{initialsOf(p)}</div>}
         <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(180deg, transparent 45%, rgba(0,0,0,0.75) 100%)" }} />
         <div className="absolute left-0 right-0 bottom-0 p-6 text-white">
-          <h1 className="font-display font-black leading-[0.9] tracking-tight" style={{ fontSize: 42 }}>{(p.first_name || "PRÉNOM").toUpperCase()}<br />{(p.last_name || "NOM").toUpperCase()}</h1>
-          <p className="mt-2 text-sm font-medium opacity-90">{p.job_title || "Votre poste"}</p>
+          <h1 className="font-display font-black leading-[0.9] tracking-tight" style={{ fontSize: 42, color: cName }}>{(p.first_name || "PRÉNOM").toUpperCase()}<br />{(p.last_name || "NOM").toUpperCase()}</h1>
+          <p className="mt-2 text-sm font-medium opacity-90" style={{ color: cJob }}>{p.job_title || "Votre poste"}</p>
           {p.company && <div className="mt-3 inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur border border-white/30">{p.logo_url && <img src={p.logo_url} alt="" className="w-5 h-5 rounded object-contain bg-white/90 p-0.5" />}<span className="text-xs font-semibold">{p.company}</span></div>}
         </div>
       </div>
-      <QuickRow p={p} t={t} offset />
-      {(p.bio || p.tagline) && <div className="mx-5 mb-5 p-5 rounded-2xl" style={{ background: t.surface, border: `1px solid ${t.border}` }}><p className="eyebrow mb-2" style={{ color: t.accent }}>À propos</p><p className="text-sm leading-relaxed">{p.bio || p.tagline}</p></div>}
-      <CTA t={t} onAction={onAction} />
-      <SocialList socials={socials} p={p} t={t} />
+      {order.map((id) => <div key={id}>{sections[id]}</div>)}
       <Footer t={t} />
     </div>
   );
@@ -267,17 +297,17 @@ const QuickRow = ({ p, t, offset = false }) => (
   </div>
 );
 
-const CTA = ({ t, onAction, tight = false }) => (
+const CTA = ({ t, onAction, tight = false, tcCta }) => (
   <div className={tight ? "" : "px-5 mb-6"}>
     <button onClick={() => onAction?.("vcard")} data-testid="profile-add-contact"
             className="w-full py-4 rounded-full font-bold text-sm inline-flex items-center justify-center gap-2 transition"
-            style={{ background: t.accent, color: t.isDark ? t.bg : "#FFFFFF", boxShadow: `0 10px 30px -12px ${t.accent}80` }}>
+            style={{ background: tcCta || t.accent, color: t.isDark ? t.bg : "#FFFFFF", boxShadow: `0 10px 30px -12px ${(tcCta || t.accent)}80` }}>
       <Download size={16} /> Ajouter à mes contacts
     </button>
   </div>
 );
 
-const SocialList = ({ socials, p, t }) => socials.length === 0 ? null : (
+const SocialList = ({ socials, p, t, tcLink }) => socials.length === 0 ? null : (
   <div className="px-5 mb-6 space-y-2">
     <p className="eyebrow" style={{ color: t.accent }}>Retrouvez-moi</p>
     {socials.map((s) => (
@@ -285,7 +315,7 @@ const SocialList = ({ socials, p, t }) => socials.length === 0 ? null : (
          className="flex items-center gap-3 p-3 rounded-2xl transition hover:scale-[1.01]"
          style={{ background: t.surface, border: `1px solid ${t.border}` }}>
         <div className="w-10 h-10 rounded-full grid place-items-center flex-shrink-0" style={{ background: socialColors[s.key] || t.accent, color: "#FFF" }}><s.icon size={18} /></div>
-        <p className="flex-1 text-sm font-semibold">{s.label}</p>
+        <p className="flex-1 text-sm font-semibold" style={{ color: tcLink }}>{s.label}</p>
         <ArrowUpRight size={16} style={{ color: t.subtle }} />
       </a>
     ))}

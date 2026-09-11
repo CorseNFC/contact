@@ -1,10 +1,143 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-import { ArrowRight, Sparkles, Zap, Users, Shield, Download, Bell, Check, X, Star, CreditCard, ShieldCheck, Truck } from "lucide-react";
+import { ArrowRight, Sparkles, Zap, Users, Shield, Download, Bell, Check, X, Star, CreditCard, ShieldCheck, Truck, Smartphone, Wifi } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CardPreview from "@/components/CardPreview";
 import ProfilePreview from "@/components/ProfilePreview";
+
+/* ---------- Mockups CSS des étapes (cartes KalliTag sans inscriptions) ---------- */
+const KalliCard = ({ rotate = 0, style = {} }) => (
+  <div className="absolute rounded-2xl shadow-2xl overflow-hidden" style={{
+    width: 200, height: 316,
+    background: "linear-gradient(135deg, #0B0F17 0%, #1a1a1a 50%, #0B0F17 100%)",
+    border: "1px solid rgba(212,175,55,0.15)",
+    transform: `rotate(${rotate}deg)`,
+    boxShadow: "0 30px 60px -20px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06)",
+    ...style,
+  }}>
+    {/* NFC coil discret */}
+    <div className="absolute inset-6 rounded-xl border border-white/[0.04]" />
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 rounded-full border border-white/[0.06]" />
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border border-white/[0.04]" />
+    {/* Reflet doré subtil */}
+    <div className="absolute -top-20 -left-20 w-60 h-60 rounded-full opacity-[0.08]" style={{ background: "radial-gradient(circle, #D4AF37 0%, transparent 60%)" }} />
+  </div>
+);
+
+const PhoneMockup = ({ style = {}, content }) => (
+  <div className="absolute rounded-[36px] shadow-2xl overflow-hidden" style={{
+    width: 180, height: 360,
+    background: "#0A0A0A",
+    padding: 6,
+    boxShadow: "0 30px 60px -20px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,255,255,0.06)",
+    ...style,
+  }}>
+    <div className="w-full h-full rounded-[30px] overflow-hidden relative" style={{ background: "#FAF7F0" }}>
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-4 rounded-full bg-black z-10" />
+      {content}
+    </div>
+  </div>
+);
+
+const StepVisual = ({ kind }) => {
+  if (kind === "config") {
+    // Étape 1 : client sur ordi/mobile qui personnalise son profil
+    return (
+      <div className="w-full h-full relative" style={{ background: "linear-gradient(135deg, #E8DDC8 0%, #C9B48A 100%)" }}>
+        <PhoneMockup style={{ left: "50%", top: "8%", transform: "translateX(-50%)" }} content={
+          <div className="w-full h-full pt-10 px-4">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-[#B8860B] mb-2">Configurateur</p>
+            <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-br from-amber-200 to-amber-500 mb-2 border-2 border-white shadow" />
+            <p className="text-center text-[10px] font-bold text-[#1F1B16]">Alexandre M.</p>
+            <p className="text-center text-[8px] text-[#8B7F6E]">Fondateur</p>
+            <div className="mt-3 space-y-1.5">
+              <div className="h-2 rounded bg-[#1F1B16]/10" style={{ width: "80%" }} />
+              <div className="h-2 rounded bg-[#1F1B16]/10" style={{ width: "60%" }} />
+            </div>
+            <div className="mt-3 grid grid-cols-4 gap-1">
+              <div className="h-6 rounded-md bg-[#0A66C2]" title="LinkedIn" />
+              <div className="h-6 rounded-md bg-[#E4405F]" title="Instagram" />
+              <div className="h-6 rounded-md bg-[#25D366]" title="WhatsApp" />
+              <div className="h-6 rounded-md bg-[#4A5568]" title="Site" />
+            </div>
+            <div className="mt-2 h-7 rounded-full bg-gradient-to-r from-[#B8860B] to-[#D4AF37]" />
+          </div>
+        } />
+        {/* Curseur qui pointe */}
+        <div className="absolute" style={{ right: "22%", top: "42%" }}>
+          <div className="w-6 h-6 rounded-full bg-white/40 backdrop-blur border-2 border-white/70 shadow-lg" />
+        </div>
+      </div>
+    );
+  }
+  if (kind === "shipping") {
+    // Étape 2 : atelier / packaging / colis
+    return (
+      <div className="w-full h-full relative" style={{ background: "linear-gradient(135deg, #1a1611 0%, #2A2419 60%, #0F0B08 100%)" }}>
+        {/* Écrin noir premium ouvert avec la carte à l'intérieur */}
+        <div className="absolute rounded-xl shadow-2xl" style={{
+          left: "50%", top: "50%", transform: "translate(-50%, -50%) rotate(-4deg)",
+          width: 260, height: 200,
+          background: "linear-gradient(135deg, #2A2419 0%, #1F1A11 100%)",
+          border: "1px solid rgba(212,175,55,0.25)",
+          boxShadow: "0 40px 80px -20px rgba(0,0,0,0.8), inset 0 1px 0 rgba(212,175,55,0.1)",
+        }}>
+          {/* Doublure velours */}
+          <div className="absolute inset-3 rounded-lg" style={{ background: "radial-gradient(ellipse at center, #4A3F2E 0%, #2A2419 80%)" }} />
+          {/* Carte KalliTag au centre de l'écrin */}
+          <div className="absolute rounded-lg" style={{
+            left: "50%", top: "50%", transform: "translate(-50%, -50%)",
+            width: 150, height: 95,
+            background: "linear-gradient(135deg, #0B0F17 0%, #1a1a1a 100%)",
+            border: "1px solid rgba(212,175,55,0.3)",
+            boxShadow: "0 8px 20px -4px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)",
+          }}>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border border-white/[0.08]" />
+            <div className="absolute inset-2 rounded border border-white/[0.03]" />
+          </div>
+        </div>
+        {/* Ruban doré signature */}
+        <div className="absolute top-4 left-4 px-3 py-1 rounded-full text-[9px] font-mono uppercase tracking-widest text-[#0B0F17]" style={{ background: "linear-gradient(90deg, #D4AF37, #B8860B)" }}>
+          Édition Signature
+        </div>
+        <div className="absolute bottom-4 right-4 text-[10px] font-mono uppercase tracking-widest text-[#D4AF37]/70">
+          Livraison offerte · 48-72h
+        </div>
+      </div>
+    );
+  }
+  // usage — étape 3 : RDV, tap NFC, profil s'affiche
+  return (
+    <div className="w-full h-full relative" style={{ background: "linear-gradient(135deg, #F5E6DE 0%, #E8D4C4 100%)" }}>
+      <KalliCard rotate={12} style={{ left: "6%", top: "22%" }} />
+      <PhoneMockup style={{ right: "10%", top: "10%" }} content={
+        <div className="w-full h-full relative" style={{ background: "#0B0F17" }}>
+          <div className="pt-8 px-3 text-center">
+            <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-br from-amber-300 to-amber-600 mb-2 border-2 border-white/20" />
+            <p className="text-[11px] font-bold text-white">Alexandre M.</p>
+            <p className="text-[8px] text-white/60">Fondateur · Studio Noir</p>
+            <div className="mt-3 space-y-1">
+              <div className="h-5 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#B8860B] flex items-center justify-center">
+                <span className="text-[7px] font-bold text-[#0B0F17]">AJOUTER AU CARNET</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1">
+                <div className="h-5 rounded bg-[#0A66C2]" />
+                <div className="h-5 rounded bg-[#E4405F]" />
+                <div className="h-5 rounded bg-[#25D366]" />
+                <div className="h-5 rounded bg-white/10" />
+              </div>
+            </div>
+          </div>
+        </div>
+      } />
+      {/* Onde NFC entre la carte et le téléphone */}
+      <div className="absolute" style={{ left: "38%", top: "44%" }}>
+        <div className="w-6 h-6 rounded-full border-2 border-[#B8860B]/40 animate-ping" />
+      </div>
+    </div>
+  );
+};
 
 const previewProfile = {
   theme_id: "onyx",
@@ -19,9 +152,24 @@ const previewProfile = {
 };
 
 const steps = [
-  { n: "01", title: "Commandez & personnalisez", desc: "Choisissez votre modèle, personnalisez vos infos en direct. Aperçu réaliste avant paiement." },
-  { n: "02", title: "Touchez un smartphone", desc: "Approchez votre carte d'un iPhone ou Android. Zéro app à installer pour votre interlocuteur." },
-  { n: "03", title: "Partagez à vie & récoltez", desc: "Coordonnées transmises en 3 secondes. Mises à jour illimitées, gratuites, pour toujours." },
+  {
+    n: "01",
+    title: "Personnalisez en ligne",
+    desc: "Choisissez votre finition (Noir Mat, Métal Brossé ou Or) et remplissez votre profil : photo, nom, poste, réseaux sociaux, site web... Vous voyez le rendu final en direct pendant que vous tapez.",
+    visual: "config",
+  },
+  {
+    n: "02",
+    title: "On la configure & on vous l'envoie",
+    desc: "Après paiement, notre équipe encode votre carte KalliTag avec votre profil personnalisé, puis vous l'expédie sous 48-72h. Livraison offerte en France métropolitaine.",
+    visual: "shipping",
+  },
+  {
+    n: "03",
+    title: "Partagez à chaque rencontre",
+    desc: "À chaque RDV, présentez votre carte KalliTag et approchez-la du téléphone de votre interlocuteur (iPhone ou Android). Votre profil s'affiche instantanément sur son écran — plus jamais de prospect qui vous oublie.",
+    visual: "usage",
+  },
 ];
 
 const features = [
@@ -95,19 +243,34 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* HOW IT WORKS */}
+      {/* HOW IT WORKS — alternating photo/text layout */}
       <section id="comment" className="py-24" data-testid="how-it-works">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-2xl mb-20">
             <p className="eyebrow">Comment ça marche</p>
-            <h2 className="mt-3 font-display text-3xl lg:text-4xl font-bold tracking-tight">3 étapes, pas une de plus</h2>
+            <h2 className="mt-3 font-display text-4xl lg:text-6xl font-bold tracking-tight leading-[1.05]">
+              Comment ça marche <span className="gold-text">?</span>
+            </h2>
+            <div className="mt-6 h-px bg-gradient-to-r from-[#1F1B16]/40 via-[#B8860B]/40 to-transparent" />
           </div>
-          <div className="mt-16 grid md:grid-cols-3 gap-8">
+
+          <div className="space-y-16">
             {steps.map((s, i) => (
-              <div key={s.n} className="kt-card p-8 fade-up" style={{ animationDelay: `${i * 120}ms` }} data-testid={`step-${s.n}`}>
-                <span className="font-mono text-sm text-amber-400">{s.n}</span>
-                <h3 className="mt-4 font-display font-semibold text-xl">{s.title}</h3>
-                <p className="mt-3 text-sm text-[#6B5F4E] leading-relaxed">{s.desc}</p>
+              <div key={s.n} className={`grid md:grid-cols-2 gap-8 lg:gap-16 items-center fade-up ${i % 2 === 1 ? "md:[&>*:first-child]:order-2" : ""}`} style={{ animationDelay: `${i * 100}ms` }} data-testid={`step-${s.n}`}>
+                {/* Photo side */}
+                <div className="relative">
+                  <div className="absolute -top-8 -left-4 md:-left-8 z-20 w-16 h-16 rounded-2xl bg-white shadow-xl border border-[#1F1B16]/10 grid place-items-center">
+                    <span className="font-display font-black text-3xl gold-text leading-none">{parseInt(s.n)}</span>
+                  </div>
+                  <div className="relative rounded-3xl overflow-hidden aspect-[4/3] shadow-2xl border border-[#1F1B16]/10">
+                    <StepVisual kind={s.visual} />
+                  </div>
+                </div>
+                {/* Text side */}
+                <div className="px-2">
+                  <h3 className="font-display font-bold text-3xl lg:text-4xl tracking-tight">{s.title}</h3>
+                  <p className="mt-4 text-base text-[#4A3F2E] leading-relaxed max-w-md">{s.desc}</p>
+                </div>
               </div>
             ))}
           </div>
