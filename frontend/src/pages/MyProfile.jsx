@@ -7,7 +7,7 @@ import Footer from "@/components/Footer";
 import ProfilePreview from "@/components/ProfilePreview";
 import DropZone from "@/components/DropZone";
 import { useAuth } from "@/context/AuthContext";
-import { updateProfile, uploadAvatar, getAnalytics, qrUrl, publicProfileUrl, API, getMyPro, proCheckout, proPortal, releaseCard, listLeads, leadsCsvUrl, listVariants, addVariant, deleteVariant, activateVariant } from "@/lib/api";
+import { updateProfile, uploadAvatar, getAnalytics, qrUrl, publicProfileUrl, API, getMyPro, proCheckout, proPortal, releaseCard, listLeads, leadsCsvUrl, listVariants, addVariant, deleteVariant, activateVariant, api } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -27,6 +27,7 @@ export default function MyProfile() {
   const [transferCode, setTransferCode] = useState(null);
   const [leadsData, setLeadsData] = useState(null);
   const [variants, setVariants] = useState([]);
+  const [claims, setClaims] = useState(null);
   const [params] = useSearchParams();
 
   // Auto-trigger Pro upgrade if ?upgrade=monthly|yearly
@@ -36,6 +37,8 @@ export default function MyProfile() {
       proCheckout(up, window.location.origin).then((r) => { window.location.href = r.checkout_url; }).catch(() => {});
     }
     if (params.get("pro") === "success") toast.success("Bienvenue chez KalliTag Pro !");
+    // Fetch pending NFC card claims (subscription gifts)
+    api.get("/user/pending-claims").then((r) => setClaims(r.data)).catch(() => setClaims(null));
   }, [params]);
 
   const orders = (auth.user?.orders || []).filter((o) => o.payment_status === "paid");
@@ -166,6 +169,26 @@ export default function MyProfile() {
             </div>
           </div>
         )}
+
+        {claims && claims.pending > 0 && (
+          <div className="kt-card p-5 mb-6 border-emerald-500/40 bg-emerald-500/5 flex items-start justify-between gap-4 flex-wrap" data-testid="claims-banner">
+            <div className="flex-1 min-w-[240px]">
+              <p className="eyebrow flex items-center gap-1.5 text-emerald-600"><Sparkles size={12} /> Carte{claims.pending > 1 ? "s" : ""} NFC offerte{claims.pending > 1 ? "s" : ""}</p>
+              <p className="mt-1 text-sm text-[#1F1B16]"><strong>{claims.pending} carte{claims.pending > 1 ? "s" : ""} Prestige gratuite{claims.pending > 1 ? "s" : ""}</strong> à personnaliser (offerte{claims.pending > 1 ? "s" : ""} avec votre abonnement).</p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {(claims.claims || []).filter((c) => c.status === "pending").slice(0, 3).map((c) => (
+                <Link key={c.token} to={`/reclamer-carte/${c.token}`} className="kt-btn-gold text-xs" data-testid={`claim-btn-${c.token.slice(0, 6)}`}>Réclamer →</Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mb-6 flex flex-wrap gap-2">
+          <Link to="/mon-espace/equipe" className="kt-btn-ghost text-xs inline-flex items-center gap-2" data-testid="btn-team">
+            <Users size={14} /> Gérer mon équipe
+          </Link>
+        </div>
 
         {transferCode && (
           <div className="kt-card p-6 mb-6 border-emerald-500/40 bg-emerald-500/5" data-testid="transfer-code-box">

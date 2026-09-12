@@ -243,6 +243,49 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* LEAD CAPTURE TEASER — module SaaS positionné haut, sous le hero */}
+      <section className="py-14 px-4 sm:px-6 lg:px-8" data-testid="leadcapture-teaser">
+        <div className="max-w-6xl mx-auto">
+          <div className="relative overflow-hidden rounded-3xl border border-amber-500/25 bg-gradient-to-br from-[#1F1B16] via-[#2b2418] to-[#0B0F17] p-8 lg:p-10 shadow-2xl">
+            <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-amber-500/20 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-16 -left-10 w-60 h-60 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
+            <div className="relative grid md:grid-cols-[1fr_auto] gap-6 items-center">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold uppercase tracking-widest">
+                  <Zap size={12} /> Nouveau · Module SaaS
+                </div>
+                <h2 className="mt-4 font-display text-3xl lg:text-4xl font-bold tracking-tight text-white">
+                  KalliTag <span className="gold-text">Lead Capture</span> est disponible
+                </h2>
+                <p className="mt-3 text-base text-slate-300 leading-relaxed max-w-xl">
+                  Chaque personne qui tape votre carte devient un lead qualifié dans votre CRM.
+                  Formulaire personnalisable, emails automatiques, export CSV. Dès 19,90 €/mois.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link to="/tarifs" className="kt-btn-gold" data-testid="teaser-cta-pricing">
+                    Voir les formules <ArrowRight size={16} />
+                  </Link>
+                  <Link to="/tarifs#all-in-one" className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-white/10 text-white text-sm font-medium border border-white/15 hover:bg-white/15 transition" data-testid="teaser-cta-allin">
+                    Pack All-in-One <span className="text-amber-300 font-semibold">29,90 €/mois</span>
+                  </Link>
+                </div>
+              </div>
+              <div className="hidden md:flex flex-col gap-2 items-end">
+                <div className="text-right">
+                  <p className="font-display font-black text-6xl gold-text leading-none">19,90€</p>
+                  <p className="mt-1 text-[11px] uppercase tracking-widest text-slate-400">à partir de / mois</p>
+                </div>
+                <div className="flex gap-1.5 mt-3">
+                  {["Capture", "CRM", "Emails", "Export"].map((t) => (
+                    <span key={t} className="text-[10px] px-2 py-1 rounded-full bg-white/8 border border-white/10 text-slate-300">{t}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* HOW IT WORKS — alternating photo/text layout */}
       <section id="comment" className="py-24" data-testid="how-it-works">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">

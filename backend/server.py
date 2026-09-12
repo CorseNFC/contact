@@ -34,6 +34,14 @@ db = mongo_client[os.environ["DB_NAME"]]
 orders_col = db["orders"]
 payment_transactions = db["payment_transactions"]
 magic_tokens_col = db["magic_tokens"]
+users_col = db["users"]
+lead_capture_otp_col = db["lead_capture_otp"]
+nfc_claims_col = db["nfc_claims"]
+# TTL index — OTP auto-purge after 20 min
+try:
+    lead_capture_otp_col.create_index("expires_at", expireAfterSeconds=0)
+except Exception:
+    pass
 scans_col = db["profile_scans"]
 subscriptions_col = db["subscriptions"]
 leads_col = db["leads"]
@@ -56,6 +64,8 @@ MAGIC_LINK_TTL = timedelta(minutes=20)
 SESSION_TTL = timedelta(days=30)
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+KALLITAG_SHARED_SECRET = os.environ.get("KALLITAG_SHARED_SECRET", "")
+LEAD_CAPTURE_OTP_TTL = timedelta(minutes=10)
 
 # --- Object storage (Emergent OR Cloudinary depending on env) ---
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
@@ -124,6 +134,82 @@ PRODUCT_CATALOG = {
         "features": ["Métal massif 30mm", "Anneau titane", "Infos animal + contact", "Gravé sans usure"],
     },
 }
+
+# ---------- Subscription catalog ----------
+SUBSCRIPTION_PLANS = {
+    "lead_capture": {
+        "id": "lead_capture",
+        "name": "Lead Capture",
+        "tagline": "Le module qui transforme vos rencontres en clients",
+        "price_monthly_cents": 1990,
+        "price_yearly_cents": 19900,   # ≈ 2 mois offerts
+        "lookup_key_monthly": "sub_lead_capture_monthly",
+        "lookup_key_yearly":  "sub_lead_capture_yearly",
+        "features": [
+            "Capture illimitée de leads via NFC",
+            "Dashboard temps réel",
+            "Export CSV / synchro CRM",
+            "Emails automatiques aux prospects",
+            "1 utilisateur",
+        ],
+        "activates_lead_capture": True,
+        "includes_nfc_card_qty": 0,
+        "min_seats": 1,
+        "max_seats": 1,
+    },
+    "all_in_one": {
+        "id": "all_in_one",
+        "name": "All-in-One",
+        "tagline": "Logiciel Lead Capture + carte NFC Prestige offerte",
+        "price_monthly_cents": 2990,
+        "price_yearly_cents": 29900,
+        "lookup_key_monthly": "sub_all_in_one_monthly",
+        "lookup_key_yearly":  "sub_all_in_one_yearly",
+        "features": [
+            "Tout Lead Capture",
+            "1 Carte NFC Prestige offerte (39,90 €)",
+            "Profil web KalliTag illimité",
+            "Statistiques avancées",
+            "Support prioritaire",
+        ],
+        "activates_lead_capture": True,
+        "includes_nfc_card_qty": 1,
+        "min_seats": 1,
+        "max_seats": 1,
+        "badge": "PLUS POPULAIRE",
+    },
+    "team": {
+        "id": "team",
+        "name": "Équipe / Entreprise",
+        "tagline": "Pour équipes commerciales (3 licences minimum)",
+        "price_monthly_cents": 3990,   # par licence
+        "price_yearly_cents": 39900,
+        "lookup_key_monthly": "sub_team_monthly",
+        "lookup_key_yearly":  "sub_team_yearly",
+        "features": [
+            "Tout All-in-One × N licences",
+            "N cartes NFC Prestige offertes",
+            "Dashboard multi-utilisateurs",
+            "Rôles Manager / Commercial",
+            "SSO KalliTag intégré",
+            "Support dédié + onboarding",
+        ],
+        "activates_lead_capture": True,
+        "includes_nfc_card_qty": 1,   # per seat
+        "min_seats": 3,
+        "max_seats": 50,
+        "badge": "ENTREPRISE",
+    },
+}
+
+
+def _resolve_lookup(plan_id: str, interval: str) -> tuple:
+    plan = SUBSCRIPTION_PLANS.get(plan_id)
+    if not plan:
+        raise HTTPException(404, "Plan introuvable")
+    if interval == "yearly":
+        return plan, plan["lookup_key_yearly"], plan["price_yearly_cents"]
+    return plan, plan["lookup_key_monthly"], plan["price_monthly_cents"]
 
 # Finitions physiques de la carte (aucune inscription — juste la texture + logo KalliTag discret).
 # La personnalisation se fait sur la page web profil, pas sur la carte.
@@ -615,6 +701,13 @@ async def stripe_webhook(request: Request):
                 cust_email = (c.get("email") or "").lower()
             except stripe.error.StripeError:
                 cust_email = ""
+        price_data = ((obj.get("items", {}).get("data") or [{}])[0].get("price", {}) or {})
+        lk = price_data.get("lookup_key") or ""
+        # Which plan does this lookup key belong to?
+        plan_id = None
+        for pid, p in SUBSCRIPTION_PLANS.items():
+            if lk in (p.get("lookup_key_monthly"), p.get("lookup_key_yearly")):
+                plan_id = pid; break
         subscriptions_col.update_one(
             {"stripe_subscription_id": obj["id"]},
             {"$set": {
@@ -622,18 +715,79 @@ async def stripe_webhook(request: Request):
                 "stripe_customer_id": obj.get("customer"),
                 "email": (cust_email or "").lower(),
                 "status": obj.get("status"),
+                "plan_id": plan_id,
                 "current_period_end": obj.get("current_period_end"),
                 "cancel_at_period_end": obj.get("cancel_at_period_end", False),
-                "price_lookup_key": ((obj.get("items", {}).get("data") or [{}])[0].get("price", {}) or {}).get("lookup_key"),
+                "price_lookup_key": lk,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }},
             upsert=True,
         )
+        # Auto-activate lead_capture_active for active/trialing plans that enable LC
+        if plan_id and SUBSCRIPTION_PLANS[plan_id].get("activates_lead_capture") \
+           and obj.get("status") in {"active", "trialing"} and cust_email:
+            users_col.update_one(
+                {"email": cust_email.lower()},
+                {"$set": {
+                    "lead_capture_active": True,
+                    "lead_capture_active_at": datetime.now(timezone.utc).isoformat(),
+                    "subscription_plan": plan_id,
+                }, "$setOnInsert": {
+                    "id": str(uuid.uuid4()),
+                    "email": cust_email.lower(),
+                    "role": "MANAGER",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }},
+                upsert=True,
+            )
+            # Provision free NFC card claims — one per included seat×card
+            plan_def = SUBSCRIPTION_PLANS[plan_id]
+            nfc_qty = int(plan_def.get("includes_nfc_card_qty", 0) or 0)
+            seats = int((obj.get("items", {}).get("data") or [{}])[0].get("quantity", 1) or 1)
+            total_cards = nfc_qty * seats
+            already = nfc_claims_col.count_documents({"subscription_id": obj["id"]})
+            to_create = max(0, total_cards - already)
+            for _ in range(to_create):
+                claim_token = secrets.token_urlsafe(24)
+                nfc_claims_col.insert_one({
+                    "token": claim_token,
+                    "subscription_id": obj["id"],
+                    "plan_id": plan_id,
+                    "email": cust_email.lower(),
+                    "status": "pending",  # pending | claimed | cancelled
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+            if to_create > 0 and PUBLIC_BASE_URL:
+                claim_url = f"{PUBLIC_BASE_URL.rstrip('/')}/mon-profil?claims=1"
+                subject = f"Votre{'s' if total_cards > 1 else ''} carte{'s' if total_cards > 1 else ''} NFC offerte{'s' if total_cards > 1 else ''} — abonnement {plan_def['name']}"
+                html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
+<tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
+<h1 style="color:#D4AF37;margin:0 0 12px;font-size:22px">🎉 Bienvenue chez KalliTag {escape(plan_def['name'])}</h1>
+<p style="color:#94A3B8;line-height:1.6;font-size:14px">Votre abonnement est actif. En cadeau, <strong style="color:#D4AF37">{to_create} carte{'s' if to_create > 1 else ''} NFC Prestige offerte{'s' if to_create > 1 else ''}</strong> vous attend{'ent' if to_create > 1 else ''}.</p>
+<p style="margin:28px 0;text-align:center"><a href="{escape(claim_url)}" style="display:inline-block;padding:14px 32px;background:#D4AF37;color:#0B0F17;border-radius:999px;font-weight:bold;text-decoration:none;font-size:14px">Réclamer ma carte offerte →</a></p>
+<p style="color:#64748B;font-size:12px;margin:16px 0 0">Vous personnaliserez chaque carte (nom, thème, photo) puis nous vous l'expédi{'erons' if to_create > 1 else 'erons'} gratuitement.</p>
+</td></tr></table>"""
+                try: await send_email(to=cust_email, subject=subject, html=html)
+                except Exception: logger.exception("claim email failed")
     elif t == "customer.subscription.deleted":
+        sub = subscriptions_col.find_one({"stripe_subscription_id": obj["id"]}) or {}
         subscriptions_col.update_one(
             {"stripe_subscription_id": obj["id"]},
             {"$set": {"status": "canceled", "updated_at": datetime.now(timezone.utc).isoformat()}},
         )
+        # Deactivate LC if the user has no other active subscription
+        email_l = (sub.get("email") or "").lower()
+        if email_l:
+            other = subscriptions_col.find_one({
+                "email": email_l,
+                "status": {"$in": ["active", "trialing"]},
+                "stripe_subscription_id": {"$ne": obj["id"]},
+            })
+            if not other:
+                users_col.update_one({"email": email_l}, {"$set": {
+                    "lead_capture_active": False,
+                    "lead_capture_active_at": datetime.now(timezone.utc).isoformat(),
+                }})
     return {"status": "ok"}
 
 
@@ -1253,6 +1407,66 @@ async def admin_set_revenue_status(order_id: str, body: AdminRevenueStatusIn, ad
     return {"status": "ok", "revenue_status": body.status}
 
 
+# ================================================================
+# SUBSCRIPTIONS — plans list + checkout
+# ================================================================
+
+@api_router.get("/subscription-plans")
+async def list_subscription_plans():
+    """Public — returns the pricing catalog for /tarifs and Landing."""
+    return {"plans": list(SUBSCRIPTION_PLANS.values())}
+
+
+class SubscribeIn(BaseModel):
+    plan_id: Literal["lead_capture", "all_in_one", "team"]
+    interval: Literal["monthly", "yearly"] = "monthly"
+    email: EmailStr
+    seats: int = 1
+    origin_url: str
+
+
+@api_router.post("/subscribe/checkout")
+async def subscribe_checkout(req: SubscribeIn):
+    plan, lookup_key, unit_cents = _resolve_lookup(req.plan_id, req.interval)
+    seats = max(int(plan.get("min_seats", 1)), min(int(plan.get("max_seats", 50)), int(req.seats or 1)))
+
+    prices = stripe.Price.list(lookup_keys=[lookup_key], active=True, limit=1, expand=["data.product"]).data
+    if not prices:
+        raise HTTPException(500, f"Prix Stripe manquant pour '{lookup_key}'. Créez ce prix dans le Dashboard Stripe (produit Recurring · lookup_key={lookup_key}) puis réessayez.")
+    price = prices[0]
+
+    origin = req.origin_url.rstrip("/")
+    kwargs = dict(
+        mode="subscription",
+        line_items=[{"price": price.id, "quantity": seats}],
+        success_url=f"{origin}/paiement/succes?session_id={{CHECKOUT_SESSION_ID}}&sub=1",
+        cancel_url=f"{origin}/tarifs?cancelled=1",
+        customer_email=req.email,
+        metadata={"plan_id": plan["id"], "interval": req.interval, "seats": str(seats), "email": req.email.lower()},
+        subscription_data={"metadata": {"plan_id": plan["id"], "seats": str(seats), "email": req.email.lower()}},
+        allow_promotion_codes=True,
+    )
+    try:
+        session = stripe.checkout.Session.create(**kwargs)
+    except stripe.error.StripeError as e:
+        logger.exception(f"subscribe checkout failed: {e}")
+        raise HTTPException(500, "Impossible de démarrer le paiement Stripe")
+
+    # Pre-provision the user row so LC works right after webhook
+    users_col.update_one(
+        {"email": req.email.lower()},
+        {"$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": req.email.lower(),
+            "role": "MANAGER",
+            "lead_capture_active": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"checkout_url": session.url, "session_id": session.id, "plan_id": plan["id"], "seats": seats}
+
+
 @api_router.get("/admin/orders")
 async def admin_list_orders(admin=Depends(require_admin), status: Optional[str] = None, limit: int = 200):
     q = {}
@@ -1361,6 +1575,324 @@ async def get_analytics(slug: str, user=Depends(get_current_user)):
         except Exception:
             pass
     return {"total": total, "last_7_days": last_7, "by_hour": by_hour, "recent": scans[:50]}
+
+
+# ================================================================
+# LEAD CAPTURE — SSO endpoint (email + OTP by email, shared secret)
+# ================================================================
+
+def _lc_hash(code: str, email: str) -> str:
+    """Deterministic hash of the OTP bound to the email (10-min TTL doc)."""
+    import hashlib
+    payload = f"{code}|{email.lower()}|{KALLITAG_SHARED_SECRET or 'nosalt'}"
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _lc_user_snapshot(email: str) -> Dict[str, Any]:
+    """Build the user snapshot from users_col (source of truth for
+    lead_capture_active) + most recent order (for name / company / slug)."""
+    email_l = (email or "").lower()
+    user = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
+    latest = orders_col.find_one(
+        {"contact_email": {"$regex": f"^{re.escape(email_l)}$", "$options": "i"}},
+        {"_id": 0}, sort=[("created_at", -1)],
+    ) or {}
+    prof = latest.get("profile", {}) or {}
+    first = prof.get("first_name", "") or ""
+    last  = prof.get("last_name", "")  or ""
+    name  = (f"{first} {last}").strip() or user.get("name", "") or email_l.split("@")[0]
+    return {
+        "id":         user.get("id") or email_l,   # stable id
+        "email":      email_l,
+        "name":       name,
+        "company":    prof.get("company", "") or user.get("company", "") or "",
+        "company_id": user.get("company_id") or None,
+        "role":       user.get("role", "MANAGER"),
+        "nfc_card_id": latest.get("profile_slug", "") or "",
+    }
+
+
+def _lc_require_secret(x_leadcapture_secret: Optional[str]) -> None:
+    if not KALLITAG_SHARED_SECRET or x_leadcapture_secret != KALLITAG_SHARED_SECRET:
+        raise HTTPException(401, "invalid_shared_secret")
+
+
+class LeadCaptureRequestOTPIn(BaseModel):
+    email: EmailStr
+
+
+class LeadCaptureAuthIn(BaseModel):
+    email: EmailStr
+    password: str  # OTP code sent by email
+
+
+@api_router.post("/lead-capture/request-otp")
+async def lead_capture_request_otp(
+    body: LeadCaptureRequestOTPIn,
+    x_leadcapture_secret: Optional[str] = Header(None, alias="X-LeadCapture-Secret"),
+):
+    """Step 1 — Lead Capture asks kallitag.fr to send an OTP to the user."""
+    _lc_require_secret(x_leadcapture_secret)
+    email_l = body.email.lower()
+    # Ensure a user row exists (idempotent) — default lead_capture_active=false
+    users_col.update_one(
+        {"email": email_l},
+        {"$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": email_l,
+            "role": "MANAGER",
+            "lead_capture_active": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    # Generate 6-digit code, store hash + TTL, invalidate previous ones
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    now = datetime.now(timezone.utc)
+    lead_capture_otp_col.delete_many({"email": email_l})
+    lead_capture_otp_col.insert_one({
+        "email": email_l,
+        "code_hash": _lc_hash(code, email_l),
+        "created_at": now.isoformat(),
+        "expires_at": now + LEAD_CAPTURE_OTP_TTL,  # BSON date → TTL index
+        "attempts": 0,
+        "used": False,
+    })
+    subject = "Votre code Lead Capture KalliTag"
+    html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
+<tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
+<h1 style="color:#D4AF37;margin:0 0 8px;font-size:22px">Code de connexion Lead Capture</h1>
+<p style="color:#94A3B8;margin:0 0 20px;font-size:14px">Saisissez ce code dans l'application Lead Capture pour vous connecter. Il expire dans 10 minutes.</p>
+<p style="margin:24px 0;text-align:center"><span style="display:inline-block;padding:16px 32px;background:#D4AF37;color:#0B0F17;border-radius:12px;font-size:32px;font-weight:bold;letter-spacing:6px;font-family:monospace">{code}</span></p>
+<p style="color:#64748B;font-size:12px;margin:24px 0 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">Si vous n'êtes pas à l'origine de cette demande, ignorez cet email. Envoyé par {escape(EMAIL_FROM_NAME)}. Nous ne demandons jamais votre mot de passe.</p>
+</td></tr></table>"""
+    try:
+        email_id = await send_email(to=email_l, subject=subject, html=html)
+    except Exception as e:
+        logger.exception(f"lead-capture OTP email failed: {type(e).__name__}: {e}")
+        raise HTTPException(500, "email_delivery_failed")
+    return {"ok": True, "sent": True, "email_id": email_id, "ttl_seconds": int(LEAD_CAPTURE_OTP_TTL.total_seconds())}
+
+
+@api_router.post("/lead-capture/auth")
+async def lead_capture_auth(
+    body: LeadCaptureAuthIn,
+    x_leadcapture_secret: Optional[str] = Header(None, alias="X-LeadCapture-Secret"),
+):
+    """Step 2 — Lead Capture verifies credentials and reads subscription status."""
+    _lc_require_secret(x_leadcapture_secret)
+    email_l = body.email.lower()
+
+    otp_doc = lead_capture_otp_col.find_one({"email": email_l, "used": False})
+    if not otp_doc:
+        raise HTTPException(401, "invalid_credentials")
+
+    # Expiry (BSON date compare; also handle rare case where TTL index hasn't purged yet)
+    exp = otp_doc.get("expires_at")
+    if isinstance(exp, str):
+        try: exp = datetime.fromisoformat(exp)
+        except Exception: exp = datetime.now(timezone.utc) - timedelta(seconds=1)
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp < datetime.now(timezone.utc):
+        lead_capture_otp_col.delete_one({"_id": otp_doc["_id"]})
+        raise HTTPException(401, "invalid_credentials")
+
+    # Brute force guard: 5 attempts max per code
+    if int(otp_doc.get("attempts", 0)) >= 5:
+        lead_capture_otp_col.delete_one({"_id": otp_doc["_id"]})
+        raise HTTPException(401, "too_many_attempts")
+
+    if _lc_hash(body.password.strip(), email_l) != otp_doc.get("code_hash"):
+        lead_capture_otp_col.update_one({"_id": otp_doc["_id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(401, "invalid_credentials")
+
+    # Consume OTP
+    lead_capture_otp_col.update_one({"_id": otp_doc["_id"]}, {"$set": {
+        "used": True, "used_at": datetime.now(timezone.utc).isoformat(),
+    }})
+
+    user_doc = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
+    active = bool(user_doc.get("lead_capture_active", False))
+    return {
+        "ok": True,
+        "lead_capture_active": active,
+        "user": _lc_user_snapshot(email_l),
+    }
+
+
+# ---- Admin: activate / deactivate Lead Capture subscription for a user ----
+class AdminLeadCaptureIn(BaseModel):
+    email: EmailStr
+    active: bool
+
+
+@api_router.post("/admin/lead-capture/set-active")
+async def admin_set_lead_capture(body: AdminLeadCaptureIn, admin=Depends(require_admin)):
+    email_l = body.email.lower()
+    r = users_col.update_one(
+        {"email": email_l},
+        {"$set": {
+            "lead_capture_active": bool(body.active),
+            "lead_capture_active_at": datetime.now(timezone.utc).isoformat(),
+        }, "$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": email_l,
+            "role": "MANAGER",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"ok": True, "email": email_l, "lead_capture_active": bool(body.active),
+            "created": r.upserted_id is not None}
+
+
+@api_router.get("/admin/lead-capture/users")
+async def admin_list_lead_capture_users(admin=Depends(require_admin)):
+    users = list(users_col.find({}, {"_id": 0}).sort("created_at", -1).limit(500))
+    return {"users": users, "count": len(users)}
+
+# ================================================================
+# NFC CARD CLAIMS (free cards included in subscriptions)
+# ================================================================
+
+@api_router.get("/nfc-claim/{token}")
+async def nfc_claim_info(token: str):
+    doc = nfc_claims_col.find_one({"token": token}, {"_id": 0})
+    if not doc: raise HTTPException(404, "Bon de carte introuvable")
+    plan = SUBSCRIPTION_PLANS.get(doc.get("plan_id", ""), {})
+    return {"token": token, "email": doc.get("email"), "status": doc.get("status"), "plan_name": plan.get("name", "")}
+
+
+class NfcClaimIn(BaseModel):
+    profile: ProfileConfig
+    shipping: ShippingAddress
+
+
+@api_router.post("/nfc-claim/{token}")
+async def nfc_claim_submit(token: str, body: NfcClaimIn):
+    doc = nfc_claims_col.find_one({"token": token})
+    if not doc: raise HTTPException(404, "Bon introuvable")
+    if doc.get("status") == "claimed":
+        raise HTTPException(409, "Cette carte a déjà été réclamée")
+    order_id = str(uuid.uuid4())
+    base_slug = _slugify(f"{body.profile.first_name}-{body.profile.last_name}") or "carte"
+    slug = f"{base_slug}-{order_id[:6]}"
+    email_l = (doc.get("email") or "").lower()
+    order_doc = {
+        "order_id": order_id, "product_id": "card_prestige", "product_name": "Carte NFC Prestige (offerte)",
+        "quantity": 1, "amount_cents": 0, "profile_slug": slug,
+        "profile": body.profile.model_dump(), "shipping": body.shipping.model_dump(),
+        "contact_email": email_l, "status": "paid", "payment_status": "paid",
+        "revenue_status": "gift", "revenue_status_at": datetime.now(timezone.utc).isoformat(),
+        "shipped": False, "is_bulk": False,
+        "claim_token": token, "claim_subscription_id": doc.get("subscription_id"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    orders_col.insert_one(order_doc)
+    nfc_claims_col.update_one({"token": token}, {"$set": {
+        "status": "claimed", "claimed_at": datetime.now(timezone.utc).isoformat(),
+        "order_id": order_id, "profile_slug": slug,
+    }})
+    return {"ok": True, "order_id": order_id, "profile_slug": slug}
+
+
+@api_router.get("/user/pending-claims")
+async def list_my_claims(user=Depends(get_current_user)):
+    claims = list(nfc_claims_col.find({"email": user["email"].lower()}, {"_id": 0}).sort("created_at", -1))
+    return {"claims": claims, "pending": sum(1 for c in claims if c.get("status") == "pending")}
+
+
+# ================================================================
+# TEAM ONBOARDING (managers invite commerciaux)
+# ================================================================
+
+def _require_manager(email: str) -> Dict[str, Any]:
+    u = users_col.find_one({"email": email.lower()}, {"_id": 0}) or {}
+    role = (u.get("role") or "").upper()
+    if role and role != "MANAGER":
+        raise HTTPException(403, "Réservé aux managers d'équipe")
+    return u
+
+
+class TeamInviteIn(BaseModel):
+    email: EmailStr
+    name: Optional[str] = ""
+
+
+@api_router.post("/team/invite")
+async def team_invite(body: TeamInviteIn, user=Depends(get_current_user)):
+    manager_email = user["email"].lower()
+    _require_manager(manager_email)
+    invitee = body.email.lower()
+    if invitee == manager_email:
+        raise HTTPException(400, "Vous ne pouvez pas vous inviter vous-même")
+
+    # Upsert commercial user attached to this manager
+    users_col.update_one(
+        {"email": invitee},
+        {"$set": {
+            "role": "COMMERCIAL",
+            "manager_email": manager_email,
+            "name": (body.name or "").strip(),
+            "lead_capture_active": True,   # inherits from manager's plan
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }, "$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": invitee,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+    # Send magic link so the commercial can access their dashboard
+    token = secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(minutes=30)
+    magic_tokens_col.insert_one({
+        "token": token, "email": invitee, "expires_at": expires.isoformat(),
+        "used": False, "created_at": datetime.now(timezone.utc).isoformat(),
+        "invited_by": manager_email,
+    })
+    base = PUBLIC_BASE_URL or ""
+    link = f"{base}/auth/verify?token={token}"
+    manager_name = (user.get("name") or manager_email).strip()
+    subject = f"Vous êtes invité(e) sur l'équipe KalliTag de {manager_name}"
+    html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
+<tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
+<h1 style="color:#D4AF37;margin:0 0 12px;font-size:22px">Bienvenue dans l'équipe</h1>
+<p style="color:#94A3B8;line-height:1.6;font-size:14px">{escape(manager_email)} vous a invité(e) à rejoindre son équipe KalliTag Lead Capture. Cliquez ci-dessous pour activer votre accès (lien valide 30 min).</p>
+<p style="margin:28px 0;text-align:center"><a href="{escape(link)}" style="display:inline-block;padding:14px 32px;background:#D4AF37;color:#0B0F17;border-radius:999px;font-weight:bold;text-decoration:none;font-size:14px">Activer mon accès →</a></p>
+<p style="color:#64748B;font-size:12px;margin:16px 0 0">Rôle attribué : <strong style="color:#D4AF37">COMMERCIAL</strong>. Vous pourrez capturer des leads via votre carte NFC.</p>
+</td></tr></table>"""
+    try: await send_email(to=invitee, subject=subject, html=html)
+    except Exception: logger.exception("team invite email failed")
+    return {"ok": True, "invited": invitee, "role": "COMMERCIAL"}
+
+
+@api_router.get("/team/members")
+async def team_members(user=Depends(get_current_user)):
+    manager_email = user["email"].lower()
+    _require_manager(manager_email)
+    members = list(users_col.find(
+        {"manager_email": manager_email},
+        {"_id": 0, "email": 1, "name": 1, "role": 1, "lead_capture_active": 1, "created_at": 1, "id": 1}
+    ).sort("created_at", -1))
+    return {"members": members, "count": len(members)}
+
+
+@api_router.delete("/team/members/{email}")
+async def team_remove(email: str, user=Depends(get_current_user)):
+    manager_email = user["email"].lower()
+    _require_manager(manager_email)
+    r = users_col.update_one(
+        {"email": email.lower(), "manager_email": manager_email},
+        {"$set": {"manager_email": None, "role": "MANAGER", "lead_capture_active": False,
+                  "removed_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if r.matched_count == 0: raise HTTPException(404, "Membre introuvable")
+    return {"ok": True, "removed": email.lower()}
+
 
 
 

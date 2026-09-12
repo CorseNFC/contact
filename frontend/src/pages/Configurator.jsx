@@ -11,7 +11,6 @@ import ThemeThumb from "@/components/ThemeThumb";
 import LayoutIcon from "@/components/LayoutIcon";
 import ColorField from "@/components/ColorField";
 import DropZone from "@/components/DropZone";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { useConfig } from "@/context/ConfigContext";
 import { fetchProducts, startCheckout, formatEUR, uploadAvatarGuest } from "@/lib/api";
 import { compressImage } from "@/lib/imageCompress";
@@ -28,6 +27,23 @@ export default function Configurator() {
   const [previewOpen, setPreviewOpen] = useState(false); // full-screen mobile modal
   const [submitting, setSubmitting] = useState(false);
   const cfg = useConfig();
+
+  // Intercept browser back button while preview is open — close panel instead of navigating away
+  useEffect(() => {
+    if (!previewOpen) return;
+    window.history.pushState({ ktPreview: true }, "");
+    const onPop = () => setPreviewOpen(false);
+    window.addEventListener("popstate", onPop);
+    // Lock body scroll while panel is open
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      document.body.style.overflow = prev;
+      // If the state we pushed is still on top, pop it silently
+      if (window.history.state?.ktPreview) window.history.back();
+    };
+  }, [previewOpen]);
 
   useEffect(() => {
     fetchProducts().then((d) => {
@@ -574,86 +590,95 @@ export default function Configurator() {
       </div>
       <Footer />
 
-      {/* MOBILE FULL-SCREEN PREVIEW DIALOG */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="p-0 max-w-md bg-[#FAF7F0] border-[#1F1B16]/10 [&>button]:hidden" data-testid="mobile-preview-dialog">
-          {/* Header sticky avec bouton retour bien visible */}
-          <div className="sticky top-0 z-20 bg-[#FAF7F0]/95 backdrop-blur-md border-b border-[#1F1B16]/10 px-4 py-3 flex items-center justify-between">
-            <button
-              onClick={() => setPreviewOpen(false)}
-              data-testid="mobile-preview-back"
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-[#1F1B16]/10 text-sm font-medium text-[#1F1B16] active:scale-95 transition"
-            >
-              <ArrowRight size={14} className="rotate-180" />
-              <span>Retour</span>
-            </button>
-            <div className="text-center">
-              <p className="text-[10px] uppercase tracking-widest text-[#8B7F6E] leading-none">Aperçu</p>
-              <p className="text-xs font-semibold text-amber-600 mt-1 leading-none">{formatEUR(total)}</p>
+      {/* MOBILE FULL-SCREEN PREVIEW PANEL */}
+      {previewOpen && (
+        <div className="lg:hidden fixed inset-0 z-[100] bg-[#FAF7F0] flex flex-col" data-testid="mobile-preview-dialog" role="dialog" aria-modal="true">
+          {/* HEADER STICKY — bouton retour toujours visible */}
+          <div className="flex-shrink-0 border-b border-[#1F1B16]/10 bg-white/95 backdrop-blur-md">
+            <div className="px-3 py-3 flex items-center gap-2">
+              <button
+                onClick={() => setPreviewOpen(false)}
+                data-testid="mobile-preview-back"
+                className="inline-flex items-center gap-1.5 h-11 px-4 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#8B6508] text-white text-sm font-bold shadow-md active:scale-95 transition"
+              >
+                <ArrowRight size={16} className="rotate-180" />
+                Retour
+              </button>
+              <div className="flex-1 text-center min-w-0">
+                <p className="text-[10px] uppercase tracking-widest text-[#8B7F6E] leading-none">Aperçu en direct</p>
+                <p className="text-sm font-display font-bold gold-text leading-tight mt-1 truncate" data-testid="preview-total-header">{formatEUR(total)}</p>
+              </div>
+              <button
+                onClick={() => setPreviewOpen(false)}
+                data-testid="mobile-preview-close"
+                className="w-11 h-11 rounded-full bg-white border border-[#1F1B16]/10 grid place-items-center active:scale-95 transition"
+                aria-label="Fermer"
+              >
+                <X size={18} />
+              </button>
             </div>
-            <button
-              onClick={() => setPreviewOpen(false)}
-              data-testid="mobile-preview-close"
-              className="w-9 h-9 rounded-full bg-white border border-[#1F1B16]/10 grid place-items-center active:scale-95 transition"
-              aria-label="Fermer"
-            >
-              <X size={16} />
-            </button>
+            {/* Tabs Profil / Carte */}
+            <div className="px-3 pb-3 flex justify-center">
+              <div className="inline-flex rounded-full border border-[#1F1B16]/10 p-0.5 text-xs bg-white">
+                <button
+                  onClick={() => setPreviewMode("profile")}
+                  data-testid="mobile-preview-mode-profile"
+                  className={`px-4 py-2 rounded-full inline-flex items-center gap-1.5 transition font-medium ${previewMode === "profile" ? "bg-gradient-to-br from-[#D4AF37] to-[#8B6508] text-white shadow-sm" : "text-[#6B5F4E]"}`}
+                >
+                  <Smartphone size={13} /> Profil web
+                </button>
+                <button
+                  onClick={() => setPreviewMode("card")}
+                  data-testid="mobile-preview-mode-card"
+                  className={`px-4 py-2 rounded-full inline-flex items-center gap-1.5 transition font-medium ${previewMode === "card" ? "bg-gradient-to-br from-[#D4AF37] to-[#8B6508] text-white shadow-sm" : "text-[#6B5F4E]"}`}
+                >
+                  <CardIcon size={13} /> Carte NFC
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="p-5">
-            <div className="inline-flex rounded-full border border-[#1F1B16]/10 p-0.5 text-xs mb-4 bg-white">
-              <button
-                onClick={() => setPreviewMode("profile")}
-                data-testid="mobile-preview-mode-profile"
-                className={`px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition ${previewMode === "profile" ? "bg-gradient-to-br from-[#D4AF37] to-[#8B6508] text-white" : "text-[#6B5F4E]"}`}
-              >
-                <Smartphone size={13} /> Profil
-              </button>
-              <button
-                onClick={() => setPreviewMode("card")}
-                data-testid="mobile-preview-mode-card"
-                className={`px-3 py-1.5 rounded-full inline-flex items-center gap-1.5 transition ${previewMode === "card" ? "bg-gradient-to-br from-[#D4AF37] to-[#8B6508] text-white" : "text-[#6B5F4E]"}`}
-              >
-                <CardIcon size={13} /> Carte
-              </button>
-            </div>
-
-            <div className="flex justify-center py-2">
+          {/* BODY SCROLLABLE */}
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-5" data-testid="preview-body">
+            <div className="flex justify-center">
               {previewMode === "profile"
                 ? <ProfilePreview profile={cfg.profile} onAction={(k) => k === "vcard" && toast.info("Aperçu — vos contacts pourront télécharger la vCard depuis leur téléphone.")} />
-                : <div className="pt-6"><CardPreview finishId={cfg.profile.finish_id} size="md" /></div>
+                : <div className="pt-4 pb-2"><CardPreview finishId={cfg.profile.finish_id} size="md" /></div>
               }
             </div>
-
-            <div className="mt-4 border-t border-[#1F1B16]/8 pt-4 space-y-2 text-sm">
+            <div className="mt-6 rounded-2xl bg-white border border-[#1F1B16]/8 p-4 space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-[#6B5F4E]">Support</span><span className="font-medium">{product.name}</span></div>
               <div className="flex justify-between"><span className="text-[#6B5F4E]">Finition</span><span className="font-medium">{data.finishes.find(f => f.id === cfg.profile.finish_id)?.name}</span></div>
-              <div className="flex justify-between"><span className="text-[#6B5F4E]">Quantité</span>
+              <div className="flex items-center justify-between">
+                <span className="text-[#6B5F4E]">Quantité</span>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => cfg.setQuantity(Math.max(1, cfg.quantity - 1))} className="w-6 h-6 rounded border border-[#1F1B16]/10" data-testid="qty-minus-mobile">−</button>
-                  <span className="font-mono w-6 text-center" data-testid="qty-value-mobile">{cfg.quantity}</span>
-                  <button onClick={() => cfg.setQuantity(Math.min(10, cfg.quantity + 1))} className="w-6 h-6 rounded border border-[#1F1B16]/10" data-testid="qty-plus-mobile">+</button>
+                  <button onClick={() => cfg.setQuantity(Math.max(1, cfg.quantity - 1))} className="w-8 h-8 rounded-full border border-[#1F1B16]/10 grid place-items-center font-bold active:scale-90 transition" data-testid="qty-minus-mobile">−</button>
+                  <span className="font-mono w-8 text-center text-base" data-testid="qty-value-mobile">{cfg.quantity}</span>
+                  <button onClick={() => cfg.setQuantity(Math.min(10, cfg.quantity + 1))} className="w-8 h-8 rounded-full border border-[#1F1B16]/10 grid place-items-center font-bold active:scale-90 transition" data-testid="qty-plus-mobile">+</button>
                 </div>
               </div>
-              <div className="flex justify-between border-t border-[#1F1B16]/8 pt-3 mt-3">
+              <div className="flex justify-between border-t border-[#1F1B16]/8 pt-3 mt-2">
                 <span className="text-[#4A3F2E] font-medium">Total</span>
                 <span className="font-display font-bold text-lg gold-text">{formatEUR(total)}</span>
               </div>
             </div>
+            {/* Espace en bas pour éviter que le sticky footer masque le contenu */}
+            <div className="h-24" />
+          </div>
 
-            {/* Gros bouton retour en bas pour ne pas rater */}
+          {/* FOOTER STICKY — gros bouton retour toujours accessible */}
+          <div className="flex-shrink-0 border-t border-[#1F1B16]/10 bg-white/95 backdrop-blur-md px-4 py-3 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.15)]" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
             <button
               onClick={() => setPreviewOpen(false)}
               data-testid="mobile-preview-back-bottom"
-              className="mt-5 w-full h-12 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#8B6508] text-white font-bold text-sm inline-flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition"
+              className="w-full h-12 rounded-full bg-gradient-to-br from-[#D4AF37] to-[#8B6508] text-white font-bold text-sm inline-flex items-center justify-center gap-2 shadow-lg active:scale-[0.98] transition"
             >
               <ArrowRight size={16} className="rotate-180" />
               Retour à la personnalisation
             </button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   );
 }

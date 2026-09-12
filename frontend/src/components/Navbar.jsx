@@ -28,8 +28,8 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-8">
           {link("/", "Accueil", "nav-home")}
           {link("/configurateur", "Configurer", "nav-configurator")}
+          {link("/tarifs", "Tarifs", "nav-pricing")}
           {link("/entreprise", "Entreprise", "nav-entreprise")}
-          <a href="/#tarifs" className="text-sm font-medium text-[#4A3F2E] hover:text-[#1F1B16]" data-testid="nav-pricing">Tarifs</a>
           <a href="/#faq" className="text-sm font-medium text-[#4A3F2E] hover:text-[#1F1B16]" data-testid="nav-faq">FAQ</a>
         </div>
         <div className="flex items-center gap-3">
@@ -56,9 +56,11 @@ export default function Navbar() {
         </div>
       </div>
       {open && (
-        <div className="md:hidden border-t border-[#1F1B16]/8 bg-[#FAF7F0]/95 px-4 py-4 space-y-3">
+          <div className="md:hidden border-t border-[#1F1B16]/8 bg-[#FAF7F0]/95 px-4 py-4 space-y-3">
           {link("/", "Accueil", "nav-home-mobile")}
           <div />{link("/configurateur", "Configurer", "nav-configurator-mobile")}
+          <div />{link("/tarifs", "Tarifs", "nav-pricing-mobile")}
+          <div />{link("/entreprise", "Entreprise", "nav-entreprise-mobile")}
           <div />{user ? link("/mon-profil", "Mon espace", "nav-dashboard-mobile") : link("/connexion", "Connexion", "nav-login-mobile")}
         </div>
       )}

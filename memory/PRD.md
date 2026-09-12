@@ -3,6 +3,44 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v3.9 — Cartes offertes + Onboarding équipe (Feb 2026)
+- **Nouvelle collection** `nfc_claims_col` — 1 doc par carte NFC gratuite provisionnée
+- **Webhook Stripe enrichi** : sur `subscription.created/updated` (active), crée automatiquement N claims selon `plan.includes_nfc_card_qty × seats` + envoie email de bienvenue avec bouton "Réclamer"
+- **Endpoints publics** : `GET /api/nfc-claim/{token}` (info) · `POST /api/nfc-claim/{token}` (soumission profil+adresse → crée order avec `revenue_status=gift`, `amount_cents=0`)
+- **Endpoint utilisateur** : `GET /api/user/pending-claims` (auth magic-link)
+- **Page** `/reclamer-carte/:token` : formulaire 3 étapes (coordonnées, thème, livraison) + aperçu profil live
+- **Bannière MyProfile** : liste des cartes à réclamer avec CTA "Réclamer →" par carte
+- **Team endpoints** : `POST /api/team/invite` (auth manager) — upsert user COMMERCIAL + envoi magic link avec rôle · `GET /api/team/members` · `DELETE /api/team/members/{email}`
+- **Page** `/mon-espace/equipe` : formulaire d'invitation + liste membres avec badges rôle + suppression
+- **Sécurité** : replay bloqué (409 sur claim déjà consommé), managers-only sur endpoints team
+- **Test cURL complet validé** : provisioning → claim → gift order créé → apparaît dans /admin avec amount barré 0€
+
+## Design v3.8 — Abonnements & page /tarifs (Feb 2026)
+- **3 plans** dans `SUBSCRIPTION_PLANS` : Lead Capture 19,90€/mois (199€/an) · All-in-One 29,90€/mois (299€/an, "Plus Populaire") · Équipe 39,90€/mois par licence (399€/an, min 3)
+- **Nouvelle page** `/tarifs` avec toggle mensuel/annuel, calcul économie live, sélecteur licences pour Team, email pré-checkout obligatoire
+- **Endpoint** `GET /api/subscription-plans` (public) + `POST /api/subscribe/checkout` (crée Stripe Checkout session mode=subscription avec quantity=seats)
+- **Webhook enrichi** : `subscription.created/updated` (status active/trialing) → auto-set `lead_capture_active=True` sur `users_col` · `subscription.deleted` → désactive si aucun autre abonnement actif
+- **Landing teaser** : bloc premium sous le hero (bouton "Voir les formules" + "Pack All-in-One 29,90€/mois")
+- **Navbar** : lien "Tarifs" pointe vers `/tarifs` (avant c'était un anchor)
+- **Requiert côté Stripe** : 6 prix récurrents avec lookup_key `sub_{plan_id}_{monthly|yearly}`
+
+## Design v3.7 — SSO Lead Capture module (Feb 2026)
+- **Nouveau shared secret** : `KALLITAG_SHARED_SECRET` en env — `klt_lc_5b3e9a1c7d24f68b0e3a9c5d7f1b4e82`
+- **Auth OTP à 2 étapes** :
+  1. `POST /api/lead-capture/request-otp` `{email}` + header → envoie code 6 chiffres par email (Resend), TTL 10min
+  2. `POST /api/lead-capture/auth` `{email, password:code}` + header → vérifie code, retourne `{ok, lead_capture_active, user}` au format spec
+- **Nouvelle collection `users_col`** avec `lead_capture_active: bool` (défaut false), auto-créée à la 1ère demande d'OTP
+- **Nouvelle collection `lead_capture_otp_col`** avec TTL index MongoDB (auto-purge après 20min), brute-force guard 5 tentatives max
+- **Endpoints admin** : `POST /api/admin/lead-capture/set-active` + `GET /api/admin/lead-capture/users`
+- **Hash OTP** : SHA256(code + email + secret) — jamais stocké en clair, code consommé à l'usage
+
+## Design v3.6 — Panel aperçu mobile refondu (Feb 2026)
+- **Panel plein écran** `fixed inset-0 z-[100]` remplace shadcn Dialog (contournement des soucis de centrage/max-height)
+- **3 boutons sortie visibles simultanément** : "← Retour" doré 44px en header + X en header + gros "Retour à la personnalisation" en footer sticky
+- **Bouton back navigateur intercepté** via `history.pushState({ktPreview: true})` + `popstate` → ferme le panel au lieu de quitter la page (aucune perte de données)
+- **Body scroll lock** pendant l'ouverture (`document.body.style.overflow = "hidden"`)
+- **Safe-area bottom** respectée via `env(safe-area-inset-bottom)` — pas de bouton masqué par la barre iOS
+
 ## Design v3.5 — Admin classification revenus (Feb 2026)
 - **4 statuts par commande** : `counted` (défaut) · `gift` · `refunded` · `cancelled` — champ `revenue_status` en base
 - **CA net dynamique** : `/api/admin/stats` exclut les statuts non-counted du calcul revenue_cents — testé : 39,90 € → 0,00 € après passage en "Offerte"
