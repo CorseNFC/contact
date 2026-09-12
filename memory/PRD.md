@@ -3,6 +3,13 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.3 — Résolution user prioritaire par `stripe_customer_id` (Feb 2026)
+- **`_lc_set_active` refactoré** : ordre de résolution user = `stripe_customer_id` → `client_reference_id` (matches `users_col.id`) → `email` (fallback + upsert)
+- **`client_reference_id` passé au Checkout** : `subscribe_checkout` pré-provisionne l'user row et transmet `user.id` comme `client_reference_id` à Stripe → identification garantie même sans customer_id retour
+- **Support `STRIPE_API_KEY`** (spec LC) + fallback `STRIPE_SECRET_KEY` (legacy) — aucune casse en prod
+- **Gain** : les événements `invoice.paid`, `subscription.updated` qui ne contiennent QUE `customer` (pas d'email) toggle maintenant directement le flag sans appel Stripe API supplémentaire
+- **Tests ajoutés** : 9/9 passants (dont `customer_id_priority_no_email_needed` et `client_reference_id_activates_user`)
+
 ## Design v4.2 — Admin Lead Capture + endpoint `/leads` SSO (Feb 2026)
 - **Admin UI onglet Lead Capture** (`/admin` → tab "Lead Capture") : liste tous les users (`GET /api/admin/lead-capture/users`), recherche par email/nom, filtre "Actifs uniquement", toggle activation manuelle avec confirmation
 - **3 stats headers** : Comptes total · LC actifs · Managers/Commerciaux

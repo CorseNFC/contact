@@ -137,6 +137,71 @@ def test_unknown_email_returns_200_no_crash():
     assert r.json() == {"received": True}
 
 
+@pytest.mark.skipif(not WH_SECRET, reason="STRIPE_WEBHOOK_SECRET not set")
+def test_customer_id_priority_no_email_needed():
+    """When a user already has stripe_customer_id, subsequent events with only
+    'customer' (no email) must still toggle the flag."""
+    email = f"lc_prio_{uuid.uuid4().hex[:8]}@test.kallitag.fr"
+    cust_id = "cus_prio_" + uuid.uuid4().hex[:12]
+    # Seed: user with the mapping already known
+    users_col.insert_one({
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "role": "MANAGER",
+        "stripe_customer_id": cust_id,
+        "lead_capture_active": False,
+        "created_at": "2026-02-01T00:00:00+00:00",
+    })
+    try:
+        # invoice.paid with ONLY the customer id
+        r = _post_event("invoice.paid", {
+            "id": "in_" + uuid.uuid4().hex[:12],
+            "customer": cust_id,
+        })
+        assert r.status_code == 200
+        u = users_col.find_one({"email": email}, {"_id": 0}) or {}
+        assert u.get("lead_capture_active") is True, "customer_id lookup should have activated"
+        # invoice.payment_failed with ONLY the customer id → should deactivate
+        r = _post_event("invoice.payment_failed", {
+            "id": "in_" + uuid.uuid4().hex[:12],
+            "customer": cust_id,
+        })
+        assert r.status_code == 200
+        u = users_col.find_one({"email": email}, {"_id": 0}) or {}
+        assert u.get("lead_capture_active") is False
+    finally:
+        users_col.delete_one({"email": email})
+
+
+@pytest.mark.skipif(not WH_SECRET, reason="STRIPE_WEBHOOK_SECRET not set")
+def test_client_reference_id_activates_user():
+    """checkout.session.completed with client_reference_id must match users_col.id."""
+    email = f"lc_cref_{uuid.uuid4().hex[:8]}@test.kallitag.fr"
+    user_id = str(uuid.uuid4())
+    users_col.insert_one({
+        "id": user_id,
+        "email": email,
+        "role": "MANAGER",
+        "lead_capture_active": False,
+        "created_at": "2026-02-01T00:00:00+00:00",
+    })
+    try:
+        r = _post_event("checkout.session.completed", {
+            "id": "cs_" + uuid.uuid4().hex[:12],
+            "mode": "subscription",
+            "customer": "cus_" + uuid.uuid4().hex[:12],
+            "client_reference_id": user_id,
+            # no customer_email → forces client_reference_id path
+            "metadata": {"plan_id": "lead_capture"},
+        })
+        assert r.status_code == 200
+        u = users_col.find_one({"id": user_id}, {"_id": 0}) or {}
+        assert u.get("lead_capture_active") is True
+        assert u.get("stripe_customer_id", "").startswith("cus_")
+    finally:
+        users_col.delete_one({"id": user_id})
+
+
 # ============================================================
 # Lead Capture SSO — /api/lead-capture/leads
 # ============================================================
