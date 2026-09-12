@@ -36,6 +36,7 @@ payment_transactions = db["payment_transactions"]
 magic_tokens_col = db["magic_tokens"]
 users_col = db["users"]
 lead_capture_otp_col = db["lead_capture_otp"]
+nfc_claims_col = db["nfc_claims"]
 # TTL index — OTP auto-purge after 20 min
 try:
     lead_capture_otp_col.create_index("expires_at", expireAfterSeconds=0)
@@ -739,6 +740,35 @@ async def stripe_webhook(request: Request):
                 }},
                 upsert=True,
             )
+            # Provision free NFC card claims — one per included seat×card
+            plan_def = SUBSCRIPTION_PLANS[plan_id]
+            nfc_qty = int(plan_def.get("includes_nfc_card_qty", 0) or 0)
+            seats = int((obj.get("items", {}).get("data") or [{}])[0].get("quantity", 1) or 1)
+            total_cards = nfc_qty * seats
+            already = nfc_claims_col.count_documents({"subscription_id": obj["id"]})
+            to_create = max(0, total_cards - already)
+            for _ in range(to_create):
+                claim_token = secrets.token_urlsafe(24)
+                nfc_claims_col.insert_one({
+                    "token": claim_token,
+                    "subscription_id": obj["id"],
+                    "plan_id": plan_id,
+                    "email": cust_email.lower(),
+                    "status": "pending",  # pending | claimed | cancelled
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+            if to_create > 0 and PUBLIC_BASE_URL:
+                claim_url = f"{PUBLIC_BASE_URL.rstrip('/')}/mon-profil?claims=1"
+                subject = f"Votre{'s' if total_cards > 1 else ''} carte{'s' if total_cards > 1 else ''} NFC offerte{'s' if total_cards > 1 else ''} — abonnement {plan_def['name']}"
+                html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
+<tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
+<h1 style="color:#D4AF37;margin:0 0 12px;font-size:22px">🎉 Bienvenue chez KalliTag {escape(plan_def['name'])}</h1>
+<p style="color:#94A3B8;line-height:1.6;font-size:14px">Votre abonnement est actif. En cadeau, <strong style="color:#D4AF37">{to_create} carte{'s' if to_create > 1 else ''} NFC Prestige offerte{'s' if to_create > 1 else ''}</strong> vous attend{'ent' if to_create > 1 else ''}.</p>
+<p style="margin:28px 0;text-align:center"><a href="{escape(claim_url)}" style="display:inline-block;padding:14px 32px;background:#D4AF37;color:#0B0F17;border-radius:999px;font-weight:bold;text-decoration:none;font-size:14px">Réclamer ma carte offerte →</a></p>
+<p style="color:#64748B;font-size:12px;margin:16px 0 0">Vous personnaliserez chaque carte (nom, thème, photo) puis nous vous l'expédi{'erons' if to_create > 1 else 'erons'} gratuitement.</p>
+</td></tr></table>"""
+                try: await send_email(to=cust_email, subject=subject, html=html)
+                except Exception: logger.exception("claim email failed")
     elif t == "customer.subscription.deleted":
         sub = subscriptions_col.find_one({"stripe_subscription_id": obj["id"]}) or {}
         subscriptions_col.update_one(
@@ -1721,6 +1751,148 @@ async def admin_set_lead_capture(body: AdminLeadCaptureIn, admin=Depends(require
 async def admin_list_lead_capture_users(admin=Depends(require_admin)):
     users = list(users_col.find({}, {"_id": 0}).sort("created_at", -1).limit(500))
     return {"users": users, "count": len(users)}
+
+# ================================================================
+# NFC CARD CLAIMS (free cards included in subscriptions)
+# ================================================================
+
+@api_router.get("/nfc-claim/{token}")
+async def nfc_claim_info(token: str):
+    doc = nfc_claims_col.find_one({"token": token}, {"_id": 0})
+    if not doc: raise HTTPException(404, "Bon de carte introuvable")
+    plan = SUBSCRIPTION_PLANS.get(doc.get("plan_id", ""), {})
+    return {"token": token, "email": doc.get("email"), "status": doc.get("status"), "plan_name": plan.get("name", "")}
+
+
+class NfcClaimIn(BaseModel):
+    profile: ProfileConfig
+    shipping: ShippingAddress
+
+
+@api_router.post("/nfc-claim/{token}")
+async def nfc_claim_submit(token: str, body: NfcClaimIn):
+    doc = nfc_claims_col.find_one({"token": token})
+    if not doc: raise HTTPException(404, "Bon introuvable")
+    if doc.get("status") == "claimed":
+        raise HTTPException(409, "Cette carte a déjà été réclamée")
+    order_id = str(uuid.uuid4())
+    base_slug = _slugify(f"{body.profile.first_name}-{body.profile.last_name}") or "carte"
+    slug = f"{base_slug}-{order_id[:6]}"
+    email_l = (doc.get("email") or "").lower()
+    order_doc = {
+        "order_id": order_id, "product_id": "card_prestige", "product_name": "Carte NFC Prestige (offerte)",
+        "quantity": 1, "amount_cents": 0, "profile_slug": slug,
+        "profile": body.profile.model_dump(), "shipping": body.shipping.model_dump(),
+        "contact_email": email_l, "status": "paid", "payment_status": "paid",
+        "revenue_status": "gift", "revenue_status_at": datetime.now(timezone.utc).isoformat(),
+        "shipped": False, "is_bulk": False,
+        "claim_token": token, "claim_subscription_id": doc.get("subscription_id"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    orders_col.insert_one(order_doc)
+    nfc_claims_col.update_one({"token": token}, {"$set": {
+        "status": "claimed", "claimed_at": datetime.now(timezone.utc).isoformat(),
+        "order_id": order_id, "profile_slug": slug,
+    }})
+    return {"ok": True, "order_id": order_id, "profile_slug": slug}
+
+
+@api_router.get("/user/pending-claims")
+async def list_my_claims(user=Depends(get_current_user)):
+    claims = list(nfc_claims_col.find({"email": user["email"].lower()}, {"_id": 0}).sort("created_at", -1))
+    return {"claims": claims, "pending": sum(1 for c in claims if c.get("status") == "pending")}
+
+
+# ================================================================
+# TEAM ONBOARDING (managers invite commerciaux)
+# ================================================================
+
+def _require_manager(email: str) -> Dict[str, Any]:
+    u = users_col.find_one({"email": email.lower()}, {"_id": 0}) or {}
+    role = (u.get("role") or "").upper()
+    if role and role != "MANAGER":
+        raise HTTPException(403, "Réservé aux managers d'équipe")
+    return u
+
+
+class TeamInviteIn(BaseModel):
+    email: EmailStr
+    name: Optional[str] = ""
+
+
+@api_router.post("/team/invite")
+async def team_invite(body: TeamInviteIn, user=Depends(get_current_user)):
+    manager_email = user["email"].lower()
+    _require_manager(manager_email)
+    invitee = body.email.lower()
+    if invitee == manager_email:
+        raise HTTPException(400, "Vous ne pouvez pas vous inviter vous-même")
+
+    # Upsert commercial user attached to this manager
+    users_col.update_one(
+        {"email": invitee},
+        {"$set": {
+            "role": "COMMERCIAL",
+            "manager_email": manager_email,
+            "name": (body.name or "").strip(),
+            "lead_capture_active": True,   # inherits from manager's plan
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }, "$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": invitee,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+    # Send magic link so the commercial can access their dashboard
+    token = secrets.token_urlsafe(32)
+    expires = datetime.now(timezone.utc) + timedelta(minutes=30)
+    magic_tokens_col.insert_one({
+        "token": token, "email": invitee, "expires_at": expires.isoformat(),
+        "used": False, "created_at": datetime.now(timezone.utc).isoformat(),
+        "invited_by": manager_email,
+    })
+    base = PUBLIC_BASE_URL or ""
+    link = f"{base}/auth/verify?token={token}"
+    manager_name = (user.get("name") or manager_email).strip()
+    subject = f"Vous êtes invité(e) sur l'équipe KalliTag de {manager_name}"
+    html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
+<tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
+<h1 style="color:#D4AF37;margin:0 0 12px;font-size:22px">Bienvenue dans l'équipe</h1>
+<p style="color:#94A3B8;line-height:1.6;font-size:14px">{escape(manager_email)} vous a invité(e) à rejoindre son équipe KalliTag Lead Capture. Cliquez ci-dessous pour activer votre accès (lien valide 30 min).</p>
+<p style="margin:28px 0;text-align:center"><a href="{escape(link)}" style="display:inline-block;padding:14px 32px;background:#D4AF37;color:#0B0F17;border-radius:999px;font-weight:bold;text-decoration:none;font-size:14px">Activer mon accès →</a></p>
+<p style="color:#64748B;font-size:12px;margin:16px 0 0">Rôle attribué : <strong style="color:#D4AF37">COMMERCIAL</strong>. Vous pourrez capturer des leads via votre carte NFC.</p>
+</td></tr></table>"""
+    try: await send_email(to=invitee, subject=subject, html=html)
+    except Exception: logger.exception("team invite email failed")
+    return {"ok": True, "invited": invitee, "role": "COMMERCIAL"}
+
+
+@api_router.get("/team/members")
+async def team_members(user=Depends(get_current_user)):
+    manager_email = user["email"].lower()
+    _require_manager(manager_email)
+    members = list(users_col.find(
+        {"manager_email": manager_email},
+        {"_id": 0, "email": 1, "name": 1, "role": 1, "lead_capture_active": 1, "created_at": 1, "id": 1}
+    ).sort("created_at", -1))
+    return {"members": members, "count": len(members)}
+
+
+@api_router.delete("/team/members/{email}")
+async def team_remove(email: str, user=Depends(get_current_user)):
+    manager_email = user["email"].lower()
+    _require_manager(manager_email)
+    r = users_col.update_one(
+        {"email": email.lower(), "manager_email": manager_email},
+        {"$set": {"manager_email": None, "role": "MANAGER", "lead_capture_active": False,
+                  "removed_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if r.matched_count == 0: raise HTTPException(404, "Membre introuvable")
+    return {"ok": True, "removed": email.lower()}
+
 
 
 

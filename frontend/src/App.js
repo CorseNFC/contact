@@ -16,6 +16,8 @@ import Reclaim from "@/pages/Reclaim";
 import Admin from "@/pages/Admin";
 import Entreprise from "@/pages/Entreprise";
 import Tarifs from "@/pages/Tarifs";
+import ClaimCard from "@/pages/ClaimCard";
+import Team from "@/pages/Team";
 
 function App() {
   return (
@@ -28,6 +30,8 @@ function App() {
             <Route path="/configurateur" element={<Configurator />} />
             <Route path="/entreprise" element={<Entreprise />} />
             <Route path="/tarifs" element={<Tarifs />} />
+            <Route path="/reclamer-carte/:token" element={<ClaimCard />} />
+            <Route path="/mon-espace/equipe" element={<Team />} />
             <Route path="/paiement/succes" element={<Success />} />
             <Route path="/paiement/annule" element={<Cancel />} />
             <Route path="/p/:slug" element={<PublicProfile />} />
