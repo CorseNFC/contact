@@ -3,6 +3,14 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.0 — SSO externe Lead Capture (Feb 2026)
+- **Décision archi** : l'app Lead Capture est un **projet Emergent séparé** (`lead-capture-pwa-3.preview.emergentagent.com`), pas intégrée à kallitag.fr
+- **kallitag.fr = source de vérité** pour `lead_capture_active` + envoi OTP. L'app Lead Capture est un client SSO du backend kallitag
+- **Rien à afficher sur kallitag** (pas de bouton "Accéder à Lead Capture") — les utilisateurs vont directement sur l'URL Lead Capture
+- **Guide d'intégration livré** : `/app/memory/LEAD_CAPTURE_SSO_INTEGRATION.md` (362 lignes) — code backend proxy + Login frontend prêt à coller dans le projet Lead Capture
+- **Endpoints SSO kallitag testés en prod** : `POST /api/lead-capture/request-otp` (200 OK) + `POST /api/lead-capture/auth` (401 sur mauvais code, 200 avec snapshot user + lead_capture_active)
+- **Pas d'admin UI Lead Capture pour le moment** (reporté — activation via curl `/api/admin/lead-capture/set-active`)
+
 ## Design v3.9 — Cartes offertes + Onboarding équipe (Feb 2026)
 - **Nouvelle collection** `nfc_claims_col` — 1 doc par carte NFC gratuite provisionnée
 - **Webhook Stripe enrichi** : sur `subscription.created/updated` (active), crée automatiquement N claims selon `plan.includes_nfc_card_qty × seats` + envoie email de bienvenue avec bouton "Réclamer"
