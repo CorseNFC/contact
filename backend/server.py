@@ -34,6 +34,13 @@ db = mongo_client[os.environ["DB_NAME"]]
 orders_col = db["orders"]
 payment_transactions = db["payment_transactions"]
 magic_tokens_col = db["magic_tokens"]
+users_col = db["users"]
+lead_capture_otp_col = db["lead_capture_otp"]
+# TTL index — OTP auto-purge after 20 min
+try:
+    lead_capture_otp_col.create_index("expires_at", expireAfterSeconds=0)
+except Exception:
+    pass
 scans_col = db["profile_scans"]
 subscriptions_col = db["subscriptions"]
 leads_col = db["leads"]
@@ -56,6 +63,8 @@ MAGIC_LINK_TTL = timedelta(minutes=20)
 SESSION_TTL = timedelta(days=30)
 ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "")
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+KALLITAG_SHARED_SECRET = os.environ.get("KALLITAG_SHARED_SECRET", "")
+LEAD_CAPTURE_OTP_TTL = timedelta(minutes=10)
 
 # --- Object storage (Emergent OR Cloudinary depending on env) ---
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
@@ -1361,6 +1370,182 @@ async def get_analytics(slug: str, user=Depends(get_current_user)):
         except Exception:
             pass
     return {"total": total, "last_7_days": last_7, "by_hour": by_hour, "recent": scans[:50]}
+
+
+# ================================================================
+# LEAD CAPTURE — SSO endpoint (email + OTP by email, shared secret)
+# ================================================================
+
+def _lc_hash(code: str, email: str) -> str:
+    """Deterministic hash of the OTP bound to the email (10-min TTL doc)."""
+    import hashlib
+    payload = f"{code}|{email.lower()}|{KALLITAG_SHARED_SECRET or 'nosalt'}"
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _lc_user_snapshot(email: str) -> Dict[str, Any]:
+    """Build the user snapshot from users_col (source of truth for
+    lead_capture_active) + most recent order (for name / company / slug)."""
+    email_l = (email or "").lower()
+    user = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
+    latest = orders_col.find_one(
+        {"contact_email": {"$regex": f"^{re.escape(email_l)}$", "$options": "i"}},
+        {"_id": 0}, sort=[("created_at", -1)],
+    ) or {}
+    prof = latest.get("profile", {}) or {}
+    first = prof.get("first_name", "") or ""
+    last  = prof.get("last_name", "")  or ""
+    name  = (f"{first} {last}").strip() or user.get("name", "") or email_l.split("@")[0]
+    return {
+        "id":         user.get("id") or email_l,   # stable id
+        "email":      email_l,
+        "name":       name,
+        "company":    prof.get("company", "") or user.get("company", "") or "",
+        "company_id": user.get("company_id") or None,
+        "role":       user.get("role", "MANAGER"),
+        "nfc_card_id": latest.get("profile_slug", "") or "",
+    }
+
+
+def _lc_require_secret(x_leadcapture_secret: Optional[str]) -> None:
+    if not KALLITAG_SHARED_SECRET or x_leadcapture_secret != KALLITAG_SHARED_SECRET:
+        raise HTTPException(401, "invalid_shared_secret")
+
+
+class LeadCaptureRequestOTPIn(BaseModel):
+    email: EmailStr
+
+
+class LeadCaptureAuthIn(BaseModel):
+    email: EmailStr
+    password: str  # OTP code sent by email
+
+
+@api_router.post("/lead-capture/request-otp")
+async def lead_capture_request_otp(
+    body: LeadCaptureRequestOTPIn,
+    x_leadcapture_secret: Optional[str] = Header(None, alias="X-LeadCapture-Secret"),
+):
+    """Step 1 — Lead Capture asks kallitag.fr to send an OTP to the user."""
+    _lc_require_secret(x_leadcapture_secret)
+    email_l = body.email.lower()
+    # Ensure a user row exists (idempotent) — default lead_capture_active=false
+    users_col.update_one(
+        {"email": email_l},
+        {"$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": email_l,
+            "role": "MANAGER",
+            "lead_capture_active": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    # Generate 6-digit code, store hash + TTL, invalidate previous ones
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    now = datetime.now(timezone.utc)
+    lead_capture_otp_col.delete_many({"email": email_l})
+    lead_capture_otp_col.insert_one({
+        "email": email_l,
+        "code_hash": _lc_hash(code, email_l),
+        "created_at": now.isoformat(),
+        "expires_at": now + LEAD_CAPTURE_OTP_TTL,  # BSON date → TTL index
+        "attempts": 0,
+        "used": False,
+    })
+    subject = "Votre code Lead Capture KalliTag"
+    html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
+<tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
+<h1 style="color:#D4AF37;margin:0 0 8px;font-size:22px">Code de connexion Lead Capture</h1>
+<p style="color:#94A3B8;margin:0 0 20px;font-size:14px">Saisissez ce code dans l'application Lead Capture pour vous connecter. Il expire dans 10 minutes.</p>
+<p style="margin:24px 0;text-align:center"><span style="display:inline-block;padding:16px 32px;background:#D4AF37;color:#0B0F17;border-radius:12px;font-size:32px;font-weight:bold;letter-spacing:6px;font-family:monospace">{code}</span></p>
+<p style="color:#64748B;font-size:12px;margin:24px 0 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">Si vous n'êtes pas à l'origine de cette demande, ignorez cet email. Envoyé par {escape(EMAIL_FROM_NAME)}. Nous ne demandons jamais votre mot de passe.</p>
+</td></tr></table>"""
+    try:
+        email_id = await send_email(to=email_l, subject=subject, html=html)
+    except Exception as e:
+        logger.exception(f"lead-capture OTP email failed: {type(e).__name__}: {e}")
+        raise HTTPException(500, "email_delivery_failed")
+    return {"ok": True, "sent": True, "email_id": email_id, "ttl_seconds": int(LEAD_CAPTURE_OTP_TTL.total_seconds())}
+
+
+@api_router.post("/lead-capture/auth")
+async def lead_capture_auth(
+    body: LeadCaptureAuthIn,
+    x_leadcapture_secret: Optional[str] = Header(None, alias="X-LeadCapture-Secret"),
+):
+    """Step 2 — Lead Capture verifies credentials and reads subscription status."""
+    _lc_require_secret(x_leadcapture_secret)
+    email_l = body.email.lower()
+
+    otp_doc = lead_capture_otp_col.find_one({"email": email_l, "used": False})
+    if not otp_doc:
+        raise HTTPException(401, "invalid_credentials")
+
+    # Expiry (BSON date compare; also handle rare case where TTL index hasn't purged yet)
+    exp = otp_doc.get("expires_at")
+    if isinstance(exp, str):
+        try: exp = datetime.fromisoformat(exp)
+        except Exception: exp = datetime.now(timezone.utc) - timedelta(seconds=1)
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp < datetime.now(timezone.utc):
+        lead_capture_otp_col.delete_one({"_id": otp_doc["_id"]})
+        raise HTTPException(401, "invalid_credentials")
+
+    # Brute force guard: 5 attempts max per code
+    if int(otp_doc.get("attempts", 0)) >= 5:
+        lead_capture_otp_col.delete_one({"_id": otp_doc["_id"]})
+        raise HTTPException(401, "too_many_attempts")
+
+    if _lc_hash(body.password.strip(), email_l) != otp_doc.get("code_hash"):
+        lead_capture_otp_col.update_one({"_id": otp_doc["_id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(401, "invalid_credentials")
+
+    # Consume OTP
+    lead_capture_otp_col.update_one({"_id": otp_doc["_id"]}, {"$set": {
+        "used": True, "used_at": datetime.now(timezone.utc).isoformat(),
+    }})
+
+    user_doc = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
+    active = bool(user_doc.get("lead_capture_active", False))
+    return {
+        "ok": True,
+        "lead_capture_active": active,
+        "user": _lc_user_snapshot(email_l),
+    }
+
+
+# ---- Admin: activate / deactivate Lead Capture subscription for a user ----
+class AdminLeadCaptureIn(BaseModel):
+    email: EmailStr
+    active: bool
+
+
+@api_router.post("/admin/lead-capture/set-active")
+async def admin_set_lead_capture(body: AdminLeadCaptureIn, admin=Depends(require_admin)):
+    email_l = body.email.lower()
+    r = users_col.update_one(
+        {"email": email_l},
+        {"$set": {
+            "lead_capture_active": bool(body.active),
+            "lead_capture_active_at": datetime.now(timezone.utc).isoformat(),
+        }, "$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": email_l,
+            "role": "MANAGER",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"ok": True, "email": email_l, "lead_capture_active": bool(body.active),
+            "created": r.upserted_id is not None}
+
+
+@api_router.get("/admin/lead-capture/users")
+async def admin_list_lead_capture_users(admin=Depends(require_admin)):
+    users = list(users_col.find({}, {"_id": 0}).sort("created_at", -1).limit(500))
+    return {"users": users, "count": len(users)}
 
 
 

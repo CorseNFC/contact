@@ -3,6 +3,16 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v3.7 — SSO Lead Capture module (Feb 2026)
+- **Nouveau shared secret** : `KALLITAG_SHARED_SECRET` en env — `klt_lc_5b3e9a1c7d24f68b0e3a9c5d7f1b4e82`
+- **Auth OTP à 2 étapes** :
+  1. `POST /api/lead-capture/request-otp` `{email}` + header → envoie code 6 chiffres par email (Resend), TTL 10min
+  2. `POST /api/lead-capture/auth` `{email, password:code}` + header → vérifie code, retourne `{ok, lead_capture_active, user}` au format spec
+- **Nouvelle collection `users_col`** avec `lead_capture_active: bool` (défaut false), auto-créée à la 1ère demande d'OTP
+- **Nouvelle collection `lead_capture_otp_col`** avec TTL index MongoDB (auto-purge après 20min), brute-force guard 5 tentatives max
+- **Endpoints admin** : `POST /api/admin/lead-capture/set-active` + `GET /api/admin/lead-capture/users`
+- **Hash OTP** : SHA256(code + email + secret) — jamais stocké en clair, code consommé à l'usage
+
 ## Design v3.6 — Panel aperçu mobile refondu (Feb 2026)
 - **Panel plein écran** `fixed inset-0 z-[100]` remplace shadcn Dialog (contournement des soucis de centrage/max-height)
 - **3 boutons sortie visibles simultanément** : "← Retour" doré 44px en header + X en header + gros "Retour à la personnalisation" en footer sticky
