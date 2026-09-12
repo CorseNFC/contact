@@ -54,6 +54,10 @@ export const adminUnship = async (orderId) => (await api.post(`/admin/orders/${o
 export const adminSetRevenueStatus = async (orderId, status) => (await api.post(`/admin/orders/${orderId}/revenue-status`, { status }, { headers: adminHeaders() })).data;
 export const adminExportUrl = () => `${API}/admin/orders/export.csv`;
 
+// Lead Capture admin
+export const adminListLcUsers = async () => (await api.get("/admin/lead-capture/users", { headers: adminHeaders() })).data;
+export const adminSetLcActive = async (email, active) => (await api.post("/admin/lead-capture/set-active", { email, active }, { headers: adminHeaders() })).data;
+
 export const requestMagicLink = async (email, origin_url) => (await api.post("/auth/request-link", { email, origin_url })).data;
 export const verifyMagicLink = async (token) => (await api.get("/auth/verify", { params: { token } })).data;
 export const getMe = async () => (await api.get("/me")).data;

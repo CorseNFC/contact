@@ -3,6 +3,43 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.3 — Résolution user prioritaire par `stripe_customer_id` (Feb 2026)
+- **`_lc_set_active` refactoré** : ordre de résolution user = `stripe_customer_id` → `client_reference_id` (matches `users_col.id`) → `email` (fallback + upsert)
+- **`client_reference_id` passé au Checkout** : `subscribe_checkout` pré-provisionne l'user row et transmet `user.id` comme `client_reference_id` à Stripe → identification garantie même sans customer_id retour
+- **Support `STRIPE_API_KEY`** (spec LC) + fallback `STRIPE_SECRET_KEY` (legacy) — aucune casse en prod
+- **Gain** : les événements `invoice.paid`, `subscription.updated` qui ne contiennent QUE `customer` (pas d'email) toggle maintenant directement le flag sans appel Stripe API supplémentaire
+- **Tests ajoutés** : 9/9 passants (dont `customer_id_priority_no_email_needed` et `client_reference_id_activates_user`)
+
+## Design v4.2 — Admin Lead Capture + endpoint `/leads` SSO (Feb 2026)
+- **Admin UI onglet Lead Capture** (`/admin` → tab "Lead Capture") : liste tous les users (`GET /api/admin/lead-capture/users`), recherche par email/nom, filtre "Actifs uniquement", toggle activation manuelle avec confirmation
+- **3 stats headers** : Comptes total · LC actifs · Managers/Commerciaux
+- **Nouvel endpoint SSO `GET /api/lead-capture/leads?email=&limit=&since=`** — protégé par `X-LeadCapture-Secret`, renvoie tous les leads captés sur les profils NFC du user (`owner_email` match)
+- **Support `since=<iso>` pour polling incrémental** (l'app Lead Capture peut fetch uniquement les nouveaux leads)
+- **Guide d'intégration mis à jour** : `/app/memory/LEAD_CAPTURE_SSO_INTEGRATION.md` — ajoute `routes/leads.py` (proxy) + hook React `useLeads`
+- **Tests** : 7/7 passants (`tests/test_stripe_webhook.py`) — 2 nouveaux cas pour `/leads` (secret requis + tri desc + filtre since)
+- **Formulaire public déjà en place** : `POST /api/profile/{slug}/lead` + form ouvrant dans `PublicProfile.jsx` → capture immédiate, remonte via `/lead-capture/leads`
+
+## Design v4.1 — Webhook Stripe pilote `lead_capture_active` (Feb 2026)
+- **Helper `_lc_set_active(email, active, customer_id, plan_id)`** — upsert idempotent sur `users_col` (crée l'user si absent, MAJ `lead_capture_active` + `stripe_customer_id` + `lead_capture_active_at`)
+- **Helper `_lc_email_from_customer(cust_id)`** — cache-first (`users_col.stripe_customer_id`) puis `stripe.Customer.retrieve` en fallback
+- **Helper `_lc_has_other_active_sub(email)`** — empêche la désactivation quand l'user a une autre sub LC active
+- **Événements webhook gérés** (tous répondent `{"received": true}` en 200 pour éviter les retries Stripe) :
+  - `checkout.session.completed` mode=subscription → active immédiatement (avant même `subscription.created`)
+  - `customer.subscription.created/updated` → active si status ∈ {active, trialing} + plan LC-enabled + provisionne les cartes NFC offertes
+  - `customer.subscription.deleted` → désactive si aucune autre sub LC active
+  - `invoice.paid` → active défensivement (renouvellement)
+  - `invoice.payment_failed` → désactive si aucune autre sub LC active
+- **Sécurité** : signature vérifiée avec `STRIPE_WEBHOOK_SECRET` (400 si invalide). Email inconnu → no-op silencieux (200). Idempotent (chaque event peut être rejoué).
+- **Tests** : `/app/backend/tests/test_stripe_webhook.py` — 5 cas passants (signature invalide, checkout sub, invoice.paid, invoice.payment_failed, email inconnu)
+
+## Design v4.0 — SSO externe Lead Capture (Feb 2026)
+- **Décision archi** : l'app Lead Capture est un **projet Emergent séparé** (`lead-capture-pwa-3.preview.emergentagent.com`), pas intégrée à kallitag.fr
+- **kallitag.fr = source de vérité** pour `lead_capture_active` + envoi OTP. L'app Lead Capture est un client SSO du backend kallitag
+- **Rien à afficher sur kallitag** (pas de bouton "Accéder à Lead Capture") — les utilisateurs vont directement sur l'URL Lead Capture
+- **Guide d'intégration livré** : `/app/memory/LEAD_CAPTURE_SSO_INTEGRATION.md` (362 lignes) — code backend proxy + Login frontend prêt à coller dans le projet Lead Capture
+- **Endpoints SSO kallitag testés en prod** : `POST /api/lead-capture/request-otp` (200 OK) + `POST /api/lead-capture/auth` (401 sur mauvais code, 200 avec snapshot user + lead_capture_active)
+- **Pas d'admin UI Lead Capture pour le moment** (reporté — activation via curl `/api/admin/lead-capture/set-active`)
+
 ## Design v3.9 — Cartes offertes + Onboarding équipe (Feb 2026)
 - **Nouvelle collection** `nfc_claims_col` — 1 doc par carte NFC gratuite provisionnée
 - **Webhook Stripe enrichi** : sur `subscription.created/updated` (active), crée automatiquement N claims selon `plan.includes_nfc_card_qty × seats` + envoie email de bienvenue avec bouton "Réclamer"
