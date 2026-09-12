@@ -1790,6 +1790,27 @@ async def lead_capture_auth(
     }
 
 
+@api_router.get("/lead-capture/leads")
+async def lead_capture_leads(
+    email: EmailStr,
+    limit: int = 500,
+    since: Optional[str] = None,
+    x_leadcapture_secret: Optional[str] = Header(None, alias="X-LeadCapture-Secret"),
+):
+    """SSO endpoint — the Lead Capture app fetches leads captured across ALL
+    NFC profiles owned by this email. Requires the shared secret (server-to-server)."""
+    _lc_require_secret(x_leadcapture_secret)
+    email_l = email.lower()
+    q: Dict[str, Any] = {"owner_email": email_l}
+    if since:
+        q["created_at"] = {"$gt": since}
+    limit = max(1, min(int(limit or 500), 1000))
+    leads = list(
+        leads_col.find(q, {"_id": 0}).sort("created_at", -1).limit(limit)
+    )
+    return {"ok": True, "email": email_l, "count": len(leads), "leads": leads}
+
+
 # ---- Admin: activate / deactivate Lead Capture subscription for a user ----
 class AdminLeadCaptureIn(BaseModel):
     email: EmailStr

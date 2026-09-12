@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, Package, TrendingUp, Copy, Check, ExternalLink, Truck, RefreshCw, Download, LogOut, Gift, XCircle, Undo2, RotateCcw } from "lucide-react";
-import { adminLogin, adminStats, adminOrders, adminMarkShipped, adminUnship, adminSetRevenueStatus, adminExportUrl, getAdminToken, setAdminToken, clearAdminToken } from "@/lib/api";
+import { Loader2, ShieldCheck, Package, TrendingUp, Copy, Check, ExternalLink, Truck, RefreshCw, Download, LogOut, Gift, XCircle, Undo2, RotateCcw, Users, ToggleLeft, ToggleRight, Search } from "lucide-react";
+import { adminLogin, adminStats, adminOrders, adminMarkShipped, adminUnship, adminSetRevenueStatus, adminExportUrl, adminListLcUsers, adminSetLcActive, getAdminToken, setAdminToken, clearAdminToken } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -15,6 +15,11 @@ export default function Admin() {
   const [filter, setFilter] = useState("to_ship");
   const [copied, setCopied] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [view, setView] = useState("orders"); // "orders" | "lc"
+  const [lcUsers, setLcUsers] = useState([]);
+  const [lcQuery, setLcQuery] = useState("");
+  const [lcOnlyActive, setLcOnlyActive] = useState(false);
+  const [lcBusy, setLcBusy] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -27,7 +32,34 @@ export default function Admin() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (authed) load(); }, [authed, filter]); // eslint-disable-line
+  const loadLc = async () => {
+    setLoading(true);
+    try {
+      const r = await adminListLcUsers();
+      setLcUsers(r.users || []);
+    } catch (e) {
+      if (e.response?.status === 401) { clearAdminToken(); setAuthed(false); toast.error("Session expirée"); }
+      else toast.error("Erreur de chargement");
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    if (!authed) return;
+    if (view === "orders") load();
+    else loadLc();
+  }, [authed, filter, view]); // eslint-disable-line
+
+  const toggleLc = async (u) => {
+    const next = !u.lead_capture_active;
+    if (!window.confirm(`${next ? "Activer" : "Désactiver"} Lead Capture pour ${u.email} ?`)) return;
+    setLcBusy(u.email);
+    try {
+      await adminSetLcActive(u.email, next);
+      toast.success(`${u.email} — Lead Capture ${next ? "activé" : "désactivé"}`);
+      setLcUsers((arr) => arr.map((x) => x.email === u.email ? { ...x, lead_capture_active: next } : x));
+    } catch { toast.error("Impossible de mettre à jour"); }
+    finally { setLcBusy(""); }
+  };
 
   const doLogin = async (e) => {
     e.preventDefault();
@@ -110,13 +142,30 @@ export default function Admin() {
             <h1 className="mt-1 font-display text-3xl font-bold">Tableau de bord</h1>
           </div>
           <div className="flex gap-2">
-            <button onClick={load} className="kt-btn-ghost text-xs inline-flex items-center gap-1.5" data-testid="admin-refresh"><RefreshCw size={13} /> Actualiser</button>
-            <button onClick={downloadCsv} className="kt-btn-ghost text-xs inline-flex items-center gap-1.5" data-testid="admin-export"><Download size={13} /> CSV</button>
+            <button onClick={view === "orders" ? load : loadLc} className="kt-btn-ghost text-xs inline-flex items-center gap-1.5" data-testid="admin-refresh"><RefreshCw size={13} /> Actualiser</button>
+            {view === "orders" && <button onClick={downloadCsv} className="kt-btn-ghost text-xs inline-flex items-center gap-1.5" data-testid="admin-export"><Download size={13} /> CSV</button>}
             <button onClick={logout} className="kt-btn-ghost text-xs inline-flex items-center gap-1.5" data-testid="admin-logout"><LogOut size={13} /> Sortir</button>
           </div>
         </div>
 
-        {stats && (
+        <div className="flex gap-2 mb-6 border-b border-white/5" data-testid="admin-tabs">
+          <button
+            onClick={() => setView("orders")}
+            data-testid="tab-orders"
+            className={`px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${view === "orders" ? "border-amber-400 text-amber-300" : "border-transparent text-slate-500 hover:text-slate-300"}`}
+          >
+            <Package size={14} className="inline -mt-0.5 mr-1.5" /> Commandes
+          </button>
+          <button
+            onClick={() => setView("lc")}
+            data-testid="tab-lc"
+            className={`px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${view === "lc" ? "border-amber-400 text-amber-300" : "border-transparent text-slate-500 hover:text-slate-300"}`}
+          >
+            <Users size={14} className="inline -mt-0.5 mr-1.5" /> Lead Capture
+          </button>
+        </div>
+
+        {view === "orders" && stats && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-3" data-testid="admin-stats">
               <Card label="Commandes payées" value={stats.paid_orders} testid="stat-paid" />
@@ -137,6 +186,8 @@ export default function Admin() {
           </>
         )}
 
+        {view === "orders" && (
+        <>
         <div className="flex gap-2 mb-4 flex-wrap">
           {[["to_ship", "À expédier"], ["paid", "Payées"], ["shipped", "Expédiées"], ["pending", "En attente"], ["", "Toutes"]].map(([k, l]) => (
             <button key={k} onClick={() => setFilter(k)} data-testid={`filter-${k || "all"}`}
@@ -279,10 +330,117 @@ export default function Admin() {
         <p className="mt-4 text-[11px] text-slate-500 text-center">
           L'URL NFC ci-dessus est ce que vous devez écrire sur la puce de la carte physique (encodage NFC). Vos clients pourront modifier leur profil à vie sans jamais avoir à ré-encoder la carte.
         </p>
+        </>
+        )}
+
+        {view === "lc" && (
+          <LcPanel
+            users={lcUsers}
+            loading={loading}
+            query={lcQuery}
+            setQuery={setLcQuery}
+            onlyActive={lcOnlyActive}
+            setOnlyActive={setLcOnlyActive}
+            onToggle={toggleLc}
+            busyEmail={lcBusy}
+          />
+        )}
       </div>
     </div>
   );
 }
+
+const LcPanel = ({ users, loading, query, setQuery, onlyActive, setOnlyActive, onToggle, busyEmail }) => {
+  const q = query.trim().toLowerCase();
+  const filtered = users.filter((u) => {
+    if (onlyActive && !u.lead_capture_active) return false;
+    if (!q) return true;
+    return (u.email || "").toLowerCase().includes(q) || (u.name || "").toLowerCase().includes(q);
+  });
+  const activeCount = users.filter((u) => u.lead_capture_active).length;
+  return (
+    <div data-testid="lc-panel">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-5">
+        <Card label="Comptes total" value={users.length} testid="lc-stat-total" />
+        <Card label="Lead Capture actifs" value={activeCount} accent testid="lc-stat-active" />
+        <Card label="Managers / Commerciaux" value={users.filter((u) => (u.role || "").toUpperCase() !== "MANAGER").length + " commerciaux"} testid="lc-stat-roles" hint={`${users.filter((u) => (u.role || "MANAGER").toUpperCase() === "MANAGER").length} managers`} />
+      </div>
+
+      <div className="flex flex-wrap gap-3 items-center mb-4">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filtrer par email ou nom…"
+            data-testid="lc-search"
+            className="w-full pl-9 pr-3 py-2 rounded-lg bg-slate-900/60 border border-white/10 focus:border-amber-400/60 focus:outline-none text-sm text-slate-200"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none" data-testid="lc-toggle-only-active">
+          <input type="checkbox" checked={onlyActive} onChange={(e) => setOnlyActive(e.target.checked)} className="accent-amber-500" />
+          Actifs uniquement
+        </label>
+      </div>
+
+      <div className="kt-card overflow-x-auto">
+        {loading ? (
+          <div className="p-8 text-center"><Loader2 className="animate-spin text-amber-400 mx-auto" /></div>
+        ) : filtered.length === 0 ? (
+          <p className="p-8 text-center text-slate-500 text-sm">Aucun utilisateur ne correspond.</p>
+        ) : (
+          <table className="w-full text-xs" data-testid="lc-users-table">
+            <thead className="border-b border-white/5 text-slate-400 uppercase tracking-wider">
+              <tr>
+                <th className="text-left p-3">Email</th>
+                <th className="text-left p-3">Rôle</th>
+                <th className="text-left p-3">Plan</th>
+                <th className="text-left p-3">Depuis</th>
+                <th className="text-right p-3">Lead Capture</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((u) => {
+                const active = !!u.lead_capture_active;
+                const busy = busyEmail === u.email;
+                return (
+                  <tr key={u.email} className="border-b border-white/5" data-testid={`lc-row-${u.email}`}>
+                    <td className="p-3">
+                      <p className="font-medium text-slate-200">{u.email}</p>
+                      {u.name && <p className="text-slate-500 text-[11px]">{u.name}</p>}
+                    </td>
+                    <td className="p-3 text-slate-400">
+                      <span className="inline-flex text-[10px] uppercase tracking-wider font-medium text-slate-300 border border-white/10 rounded-full px-2 py-0.5">
+                        {u.role || "MANAGER"}
+                      </span>
+                    </td>
+                    <td className="p-3 text-slate-400">{u.subscription_plan || <span className="text-slate-600">—</span>}</td>
+                    <td className="p-3 text-slate-500 whitespace-nowrap">{u.lead_capture_active_at ? new Date(u.lead_capture_active_at).toLocaleDateString("fr-FR") : (u.created_at ? new Date(u.created_at).toLocaleDateString("fr-FR") : "—")}</td>
+                    <td className="p-3 text-right">
+                      <button
+                        onClick={() => onToggle(u)}
+                        disabled={busy}
+                        data-testid={`lc-toggle-${u.email}`}
+                        className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-full border transition ${active ? "border-emerald-400/50 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20" : "border-white/10 text-slate-400 hover:border-amber-400/60 hover:text-amber-300"} disabled:opacity-50`}
+                      >
+                        {busy ? <Loader2 size={12} className="animate-spin" /> : active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                        {active ? "Actif" : "Inactif"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <p className="mt-4 text-[11px] text-slate-500 text-center">
+        Les abonnements Stripe activent/désactivent automatiquement ce flag via webhook. Utilisez ce toggle pour créer un compte demo ou dépanner un cas particulier.
+      </p>
+    </div>
+  );
+};
 
 const RevenueBadge = ({ status }) => {
   const map = {

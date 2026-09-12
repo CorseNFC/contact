@@ -3,6 +3,15 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.2 — Admin Lead Capture + endpoint `/leads` SSO (Feb 2026)
+- **Admin UI onglet Lead Capture** (`/admin` → tab "Lead Capture") : liste tous les users (`GET /api/admin/lead-capture/users`), recherche par email/nom, filtre "Actifs uniquement", toggle activation manuelle avec confirmation
+- **3 stats headers** : Comptes total · LC actifs · Managers/Commerciaux
+- **Nouvel endpoint SSO `GET /api/lead-capture/leads?email=&limit=&since=`** — protégé par `X-LeadCapture-Secret`, renvoie tous les leads captés sur les profils NFC du user (`owner_email` match)
+- **Support `since=<iso>` pour polling incrémental** (l'app Lead Capture peut fetch uniquement les nouveaux leads)
+- **Guide d'intégration mis à jour** : `/app/memory/LEAD_CAPTURE_SSO_INTEGRATION.md` — ajoute `routes/leads.py` (proxy) + hook React `useLeads`
+- **Tests** : 7/7 passants (`tests/test_stripe_webhook.py`) — 2 nouveaux cas pour `/leads` (secret requis + tri desc + filtre since)
+- **Formulaire public déjà en place** : `POST /api/profile/{slug}/lead` + form ouvrant dans `PublicProfile.jsx` → capture immédiate, remonte via `/lead-capture/leads`
+
 ## Design v4.1 — Webhook Stripe pilote `lead_capture_active` (Feb 2026)
 - **Helper `_lc_set_active(email, active, customer_id, plan_id)`** — upsert idempotent sur `users_col` (crée l'user si absent, MAJ `lead_capture_active` + `stripe_customer_id` + `lead_capture_active_at`)
 - **Helper `_lc_email_from_customer(cust_id)`** — cache-first (`users_col.stripe_customer_id`) puis `stripe.Customer.retrieve` en fallback

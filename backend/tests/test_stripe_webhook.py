@@ -135,3 +135,59 @@ def test_unknown_email_returns_200_no_crash():
     })
     assert r.status_code == 200
     assert r.json() == {"received": True}
+
+
+# ============================================================
+# Lead Capture SSO — /api/lead-capture/leads
+# ============================================================
+LC_SECRET = os.environ.get("KALLITAG_SHARED_SECRET", "")
+leads_col = _db["leads"]
+
+
+@pytest.mark.skipif(not LC_SECRET, reason="KALLITAG_SHARED_SECRET not set")
+def test_lc_leads_requires_shared_secret():
+    r = requests.get(f"{API}/api/lead-capture/leads",
+                     params={"email": "x@example.com"}, timeout=10)
+    assert r.status_code == 401
+    r = requests.get(f"{API}/api/lead-capture/leads",
+                     params={"email": "x@example.com"},
+                     headers={"X-LeadCapture-Secret": "WRONG"}, timeout=10)
+    assert r.status_code == 401
+
+
+@pytest.mark.skipif(not LC_SECRET, reason="KALLITAG_SHARED_SECRET not set")
+def test_lc_leads_returns_owner_leads():
+    owner = f"lc_leads_owner_{uuid.uuid4().hex[:8]}@test.kallitag.fr"
+    # Seed 3 leads across two slugs owned by this user
+    inserted_ids = []
+    for i in range(3):
+        doc = {
+            "id": str(uuid.uuid4()),
+            "profile_slug": f"slug-{i % 2}",
+            "owner_email": owner,
+            "name": f"Visitor {i}",
+            "email": f"v{i}@example.com",
+            "phone": "",
+            "message": "hello",
+            "created_at": f"2026-02-0{i+1}T10:00:00+00:00",
+        }
+        leads_col.insert_one(doc)
+        inserted_ids.append(doc["id"])
+    try:
+        r = requests.get(f"{API}/api/lead-capture/leads",
+                         params={"email": owner},
+                         headers={"X-LeadCapture-Secret": LC_SECRET},
+                         timeout=10)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["ok"] is True
+        assert data["email"] == owner
+        assert data["count"] == 3
+        assert data["leads"][0]["created_at"] > data["leads"][-1]["created_at"]  # sorted desc
+        # since filter
+        r2 = requests.get(f"{API}/api/lead-capture/leads",
+                          params={"email": owner, "since": "2026-02-02T00:00:00+00:00"},
+                          headers={"X-LeadCapture-Secret": LC_SECRET}, timeout=10)
+        assert r2.json()["count"] == 2
+    finally:
+        leads_col.delete_many({"owner_email": owner})
