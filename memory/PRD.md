@@ -3,6 +3,19 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.1 — Webhook Stripe pilote `lead_capture_active` (Feb 2026)
+- **Helper `_lc_set_active(email, active, customer_id, plan_id)`** — upsert idempotent sur `users_col` (crée l'user si absent, MAJ `lead_capture_active` + `stripe_customer_id` + `lead_capture_active_at`)
+- **Helper `_lc_email_from_customer(cust_id)`** — cache-first (`users_col.stripe_customer_id`) puis `stripe.Customer.retrieve` en fallback
+- **Helper `_lc_has_other_active_sub(email)`** — empêche la désactivation quand l'user a une autre sub LC active
+- **Événements webhook gérés** (tous répondent `{"received": true}` en 200 pour éviter les retries Stripe) :
+  - `checkout.session.completed` mode=subscription → active immédiatement (avant même `subscription.created`)
+  - `customer.subscription.created/updated` → active si status ∈ {active, trialing} + plan LC-enabled + provisionne les cartes NFC offertes
+  - `customer.subscription.deleted` → désactive si aucune autre sub LC active
+  - `invoice.paid` → active défensivement (renouvellement)
+  - `invoice.payment_failed` → désactive si aucune autre sub LC active
+- **Sécurité** : signature vérifiée avec `STRIPE_WEBHOOK_SECRET` (400 si invalide). Email inconnu → no-op silencieux (200). Idempotent (chaque event peut être rejoué).
+- **Tests** : `/app/backend/tests/test_stripe_webhook.py` — 5 cas passants (signature invalide, checkout sub, invoice.paid, invoice.payment_failed, email inconnu)
+
 ## Design v4.0 — SSO externe Lead Capture (Feb 2026)
 - **Décision archi** : l'app Lead Capture est un **projet Emergent séparé** (`lead-capture-pwa-3.preview.emergentagent.com`), pas intégrée à kallitag.fr
 - **kallitag.fr = source de vérité** pour `lead_capture_active` + envoi OTP. L'app Lead Capture est un client SSO du backend kallitag

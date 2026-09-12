@@ -660,6 +660,64 @@ async def get_status(session_id: str):
             "payment_status": record["payment_status"], "order": order}
 
 
+# ---------- Lead Capture activation helpers (idempotent, Stripe-driven) ----------
+def _lc_set_active(email: Optional[str], active: bool,
+                   stripe_customer_id: Optional[str] = None,
+                   plan_id: Optional[str] = None) -> None:
+    """Idempotently upsert a user row with the LC flag + Stripe customer mapping.
+    - Called from every Stripe event that can toggle LC access.
+    - Missing email → no-op (Stripe still receives 200 to avoid retries)."""
+    if not email:
+        return
+    email_l = email.lower()
+    set_fields: Dict[str, Any] = {
+        "lead_capture_active": bool(active),
+        "lead_capture_active_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if stripe_customer_id:
+        set_fields["stripe_customer_id"] = stripe_customer_id
+    if plan_id:
+        set_fields["subscription_plan"] = plan_id
+    users_col.update_one(
+        {"email": email_l},
+        {"$set": set_fields, "$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": email_l,
+            "role": "MANAGER",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+
+
+def _lc_email_from_customer(customer_id: Optional[str]) -> Optional[str]:
+    """Fetch the customer email from Stripe (fallback when metadata is missing)."""
+    if not customer_id:
+        return None
+    # Cache-first: our own users_col already stores stripe_customer_id
+    u = users_col.find_one({"stripe_customer_id": customer_id}, {"_id": 0, "email": 1})
+    if u and u.get("email"):
+        return u["email"]
+    try:
+        c = stripe.Customer.retrieve(customer_id)
+        return (c.get("email") or "").lower() or None
+    except stripe.error.StripeError:
+        return None
+
+
+def _lc_has_other_active_sub(email: str, exclude_sub_id: Optional[str] = None) -> bool:
+    """True if the user still has ANY other active/trialing subscription that
+    activates Lead Capture — used to avoid deactivating on partial cancellations."""
+    q: Dict[str, Any] = {"email": email.lower(), "status": {"$in": ["active", "trialing"]}}
+    if exclude_sub_id:
+        q["stripe_subscription_id"] = {"$ne": exclude_sub_id}
+    for s in subscriptions_col.find(q, {"_id": 0, "plan_id": 1}):
+        pid = s.get("plan_id")
+        if pid and SUBSCRIPTION_PLANS.get(pid, {}).get("activates_lead_capture"):
+            return True
+    return False
+
+
 @api_router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
     payload = await request.body()
@@ -670,6 +728,16 @@ async def stripe_webhook(request: Request):
         raise HTTPException(400, "Signature invalide")
     obj, t = event["data"]["object"], event["type"]
     if t == "checkout.session.completed":
+        # Subscription-mode checkout → immediately mark LC active + persist customer mapping
+        if obj.get("mode") == "subscription":
+            cust_email = (obj.get("customer_email")
+                          or (obj.get("customer_details") or {}).get("email")
+                          or (obj.get("metadata") or {}).get("email")
+                          or _lc_email_from_customer(obj.get("customer")))
+            plan_id = (obj.get("metadata") or {}).get("plan_id")
+            _lc_set_active(cust_email, True,
+                           stripe_customer_id=obj.get("customer"),
+                           plan_id=plan_id)
         result = payment_transactions.update_one(
             {"session_id": obj["id"], "payment_status": {"$ne": "paid"}},
             {"$set": {"status": "completed", "payment_status": obj.get("payment_status", "paid"),
@@ -726,20 +794,9 @@ async def stripe_webhook(request: Request):
         # Auto-activate lead_capture_active for active/trialing plans that enable LC
         if plan_id and SUBSCRIPTION_PLANS[plan_id].get("activates_lead_capture") \
            and obj.get("status") in {"active", "trialing"} and cust_email:
-            users_col.update_one(
-                {"email": cust_email.lower()},
-                {"$set": {
-                    "lead_capture_active": True,
-                    "lead_capture_active_at": datetime.now(timezone.utc).isoformat(),
-                    "subscription_plan": plan_id,
-                }, "$setOnInsert": {
-                    "id": str(uuid.uuid4()),
-                    "email": cust_email.lower(),
-                    "role": "MANAGER",
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                }},
-                upsert=True,
-            )
+            _lc_set_active(cust_email, True,
+                           stripe_customer_id=obj.get("customer"),
+                           plan_id=plan_id)
             # Provision free NFC card claims — one per included seat×card
             plan_def = SUBSCRIPTION_PLANS[plan_id]
             nfc_qty = int(plan_def.get("includes_nfc_card_qty", 0) or 0)
@@ -775,20 +832,32 @@ async def stripe_webhook(request: Request):
             {"stripe_subscription_id": obj["id"]},
             {"$set": {"status": "canceled", "updated_at": datetime.now(timezone.utc).isoformat()}},
         )
-        # Deactivate LC if the user has no other active subscription
-        email_l = (sub.get("email") or "").lower()
-        if email_l:
-            other = subscriptions_col.find_one({
-                "email": email_l,
-                "status": {"$in": ["active", "trialing"]},
-                "stripe_subscription_id": {"$ne": obj["id"]},
-            })
-            if not other:
-                users_col.update_one({"email": email_l}, {"$set": {
-                    "lead_capture_active": False,
-                    "lead_capture_active_at": datetime.now(timezone.utc).isoformat(),
-                }})
-    return {"status": "ok"}
+        email_l = (sub.get("email") or _lc_email_from_customer(obj.get("customer")) or "").lower()
+        if email_l and not _lc_has_other_active_sub(email_l, exclude_sub_id=obj["id"]):
+            _lc_set_active(email_l, False, stripe_customer_id=obj.get("customer"))
+    elif t == "invoice.paid":
+        # Renewal succeeded → keep / restore LC access
+        sub_id = obj.get("subscription")
+        cust_id = obj.get("customer")
+        cust_email = (obj.get("customer_email")
+                      or _lc_email_from_customer(cust_id))
+        plan_id = None
+        if sub_id:
+            row = subscriptions_col.find_one({"stripe_subscription_id": sub_id}) or {}
+            plan_id = row.get("plan_id")
+            if not cust_email:
+                cust_email = row.get("email")
+        # Activate defensively — Stripe only holds LC-related products for this account
+        _lc_set_active(cust_email, True, stripe_customer_id=cust_id, plan_id=plan_id)
+    elif t == "invoice.payment_failed":
+        # Payment failed → revoke LC access if no other active sub remains
+        sub_id = obj.get("subscription")
+        cust_id = obj.get("customer")
+        cust_email = (obj.get("customer_email")
+                      or _lc_email_from_customer(cust_id))
+        if cust_email and not _lc_has_other_active_sub(cust_email, exclude_sub_id=sub_id):
+            _lc_set_active(cust_email, False, stripe_customer_id=cust_id)
+    return {"received": True}
 
 
 # --------- Email sending (Resend via Emergent proxy) ---------
