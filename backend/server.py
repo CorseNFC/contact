@@ -134,6 +134,82 @@ PRODUCT_CATALOG = {
     },
 }
 
+# ---------- Subscription catalog ----------
+SUBSCRIPTION_PLANS = {
+    "lead_capture": {
+        "id": "lead_capture",
+        "name": "Lead Capture",
+        "tagline": "Le module qui transforme vos rencontres en clients",
+        "price_monthly_cents": 1990,
+        "price_yearly_cents": 19900,   # ≈ 2 mois offerts
+        "lookup_key_monthly": "sub_lead_capture_monthly",
+        "lookup_key_yearly":  "sub_lead_capture_yearly",
+        "features": [
+            "Capture illimitée de leads via NFC",
+            "Dashboard temps réel",
+            "Export CSV / synchro CRM",
+            "Emails automatiques aux prospects",
+            "1 utilisateur",
+        ],
+        "activates_lead_capture": True,
+        "includes_nfc_card_qty": 0,
+        "min_seats": 1,
+        "max_seats": 1,
+    },
+    "all_in_one": {
+        "id": "all_in_one",
+        "name": "All-in-One",
+        "tagline": "Logiciel Lead Capture + carte NFC Prestige offerte",
+        "price_monthly_cents": 2990,
+        "price_yearly_cents": 29900,
+        "lookup_key_monthly": "sub_all_in_one_monthly",
+        "lookup_key_yearly":  "sub_all_in_one_yearly",
+        "features": [
+            "Tout Lead Capture",
+            "1 Carte NFC Prestige offerte (39,90 €)",
+            "Profil web KalliTag illimité",
+            "Statistiques avancées",
+            "Support prioritaire",
+        ],
+        "activates_lead_capture": True,
+        "includes_nfc_card_qty": 1,
+        "min_seats": 1,
+        "max_seats": 1,
+        "badge": "PLUS POPULAIRE",
+    },
+    "team": {
+        "id": "team",
+        "name": "Équipe / Entreprise",
+        "tagline": "Pour équipes commerciales (3 licences minimum)",
+        "price_monthly_cents": 3990,   # par licence
+        "price_yearly_cents": 39900,
+        "lookup_key_monthly": "sub_team_monthly",
+        "lookup_key_yearly":  "sub_team_yearly",
+        "features": [
+            "Tout All-in-One × N licences",
+            "N cartes NFC Prestige offertes",
+            "Dashboard multi-utilisateurs",
+            "Rôles Manager / Commercial",
+            "SSO KalliTag intégré",
+            "Support dédié + onboarding",
+        ],
+        "activates_lead_capture": True,
+        "includes_nfc_card_qty": 1,   # per seat
+        "min_seats": 3,
+        "max_seats": 50,
+        "badge": "ENTREPRISE",
+    },
+}
+
+
+def _resolve_lookup(plan_id: str, interval: str) -> tuple:
+    plan = SUBSCRIPTION_PLANS.get(plan_id)
+    if not plan:
+        raise HTTPException(404, "Plan introuvable")
+    if interval == "yearly":
+        return plan, plan["lookup_key_yearly"], plan["price_yearly_cents"]
+    return plan, plan["lookup_key_monthly"], plan["price_monthly_cents"]
+
 # Finitions physiques de la carte (aucune inscription — juste la texture + logo KalliTag discret).
 # La personnalisation se fait sur la page web profil, pas sur la carte.
 FINISHES = [
@@ -624,6 +700,13 @@ async def stripe_webhook(request: Request):
                 cust_email = (c.get("email") or "").lower()
             except stripe.error.StripeError:
                 cust_email = ""
+        price_data = ((obj.get("items", {}).get("data") or [{}])[0].get("price", {}) or {})
+        lk = price_data.get("lookup_key") or ""
+        # Which plan does this lookup key belong to?
+        plan_id = None
+        for pid, p in SUBSCRIPTION_PLANS.items():
+            if lk in (p.get("lookup_key_monthly"), p.get("lookup_key_yearly")):
+                plan_id = pid; break
         subscriptions_col.update_one(
             {"stripe_subscription_id": obj["id"]},
             {"$set": {
@@ -631,18 +714,50 @@ async def stripe_webhook(request: Request):
                 "stripe_customer_id": obj.get("customer"),
                 "email": (cust_email or "").lower(),
                 "status": obj.get("status"),
+                "plan_id": plan_id,
                 "current_period_end": obj.get("current_period_end"),
                 "cancel_at_period_end": obj.get("cancel_at_period_end", False),
-                "price_lookup_key": ((obj.get("items", {}).get("data") or [{}])[0].get("price", {}) or {}).get("lookup_key"),
+                "price_lookup_key": lk,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }},
             upsert=True,
         )
+        # Auto-activate lead_capture_active for active/trialing plans that enable LC
+        if plan_id and SUBSCRIPTION_PLANS[plan_id].get("activates_lead_capture") \
+           and obj.get("status") in {"active", "trialing"} and cust_email:
+            users_col.update_one(
+                {"email": cust_email.lower()},
+                {"$set": {
+                    "lead_capture_active": True,
+                    "lead_capture_active_at": datetime.now(timezone.utc).isoformat(),
+                    "subscription_plan": plan_id,
+                }, "$setOnInsert": {
+                    "id": str(uuid.uuid4()),
+                    "email": cust_email.lower(),
+                    "role": "MANAGER",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }},
+                upsert=True,
+            )
     elif t == "customer.subscription.deleted":
+        sub = subscriptions_col.find_one({"stripe_subscription_id": obj["id"]}) or {}
         subscriptions_col.update_one(
             {"stripe_subscription_id": obj["id"]},
             {"$set": {"status": "canceled", "updated_at": datetime.now(timezone.utc).isoformat()}},
         )
+        # Deactivate LC if the user has no other active subscription
+        email_l = (sub.get("email") or "").lower()
+        if email_l:
+            other = subscriptions_col.find_one({
+                "email": email_l,
+                "status": {"$in": ["active", "trialing"]},
+                "stripe_subscription_id": {"$ne": obj["id"]},
+            })
+            if not other:
+                users_col.update_one({"email": email_l}, {"$set": {
+                    "lead_capture_active": False,
+                    "lead_capture_active_at": datetime.now(timezone.utc).isoformat(),
+                }})
     return {"status": "ok"}
 
 
@@ -1260,6 +1375,66 @@ async def admin_set_revenue_status(order_id: str, body: AdminRevenueStatusIn, ad
     if r.matched_count == 0:
         raise HTTPException(404, "Commande introuvable")
     return {"status": "ok", "revenue_status": body.status}
+
+
+# ================================================================
+# SUBSCRIPTIONS — plans list + checkout
+# ================================================================
+
+@api_router.get("/subscription-plans")
+async def list_subscription_plans():
+    """Public — returns the pricing catalog for /tarifs and Landing."""
+    return {"plans": list(SUBSCRIPTION_PLANS.values())}
+
+
+class SubscribeIn(BaseModel):
+    plan_id: Literal["lead_capture", "all_in_one", "team"]
+    interval: Literal["monthly", "yearly"] = "monthly"
+    email: EmailStr
+    seats: int = 1
+    origin_url: str
+
+
+@api_router.post("/subscribe/checkout")
+async def subscribe_checkout(req: SubscribeIn):
+    plan, lookup_key, unit_cents = _resolve_lookup(req.plan_id, req.interval)
+    seats = max(int(plan.get("min_seats", 1)), min(int(plan.get("max_seats", 50)), int(req.seats or 1)))
+
+    prices = stripe.Price.list(lookup_keys=[lookup_key], active=True, limit=1, expand=["data.product"]).data
+    if not prices:
+        raise HTTPException(500, f"Prix Stripe manquant pour '{lookup_key}'. Créez ce prix dans le Dashboard Stripe (produit Recurring · lookup_key={lookup_key}) puis réessayez.")
+    price = prices[0]
+
+    origin = req.origin_url.rstrip("/")
+    kwargs = dict(
+        mode="subscription",
+        line_items=[{"price": price.id, "quantity": seats}],
+        success_url=f"{origin}/paiement/succes?session_id={{CHECKOUT_SESSION_ID}}&sub=1",
+        cancel_url=f"{origin}/tarifs?cancelled=1",
+        customer_email=req.email,
+        metadata={"plan_id": plan["id"], "interval": req.interval, "seats": str(seats), "email": req.email.lower()},
+        subscription_data={"metadata": {"plan_id": plan["id"], "seats": str(seats), "email": req.email.lower()}},
+        allow_promotion_codes=True,
+    )
+    try:
+        session = stripe.checkout.Session.create(**kwargs)
+    except stripe.error.StripeError as e:
+        logger.exception(f"subscribe checkout failed: {e}")
+        raise HTTPException(500, "Impossible de démarrer le paiement Stripe")
+
+    # Pre-provision the user row so LC works right after webhook
+    users_col.update_one(
+        {"email": req.email.lower()},
+        {"$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": req.email.lower(),
+            "role": "MANAGER",
+            "lead_capture_active": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"checkout_url": session.url, "session_id": session.id, "plan_id": plan["id"], "seats": seats}
 
 
 @api_router.get("/admin/orders")

@@ -3,6 +3,15 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v3.8 — Abonnements & page /tarifs (Feb 2026)
+- **3 plans** dans `SUBSCRIPTION_PLANS` : Lead Capture 19,90€/mois (199€/an) · All-in-One 29,90€/mois (299€/an, "Plus Populaire") · Équipe 39,90€/mois par licence (399€/an, min 3)
+- **Nouvelle page** `/tarifs` avec toggle mensuel/annuel, calcul économie live, sélecteur licences pour Team, email pré-checkout obligatoire
+- **Endpoint** `GET /api/subscription-plans` (public) + `POST /api/subscribe/checkout` (crée Stripe Checkout session mode=subscription avec quantity=seats)
+- **Webhook enrichi** : `subscription.created/updated` (status active/trialing) → auto-set `lead_capture_active=True` sur `users_col` · `subscription.deleted` → désactive si aucun autre abonnement actif
+- **Landing teaser** : bloc premium sous le hero (bouton "Voir les formules" + "Pack All-in-One 29,90€/mois")
+- **Navbar** : lien "Tarifs" pointe vers `/tarifs` (avant c'était un anchor)
+- **Requiert côté Stripe** : 6 prix récurrents avec lookup_key `sub_{plan_id}_{monthly|yearly}`
+
 ## Design v3.7 — SSO Lead Capture module (Feb 2026)
 - **Nouveau shared secret** : `KALLITAG_SHARED_SECRET` en env — `klt_lc_5b3e9a1c7d24f68b0e3a9c5d7f1b4e82`
 - **Auth OTP à 2 étapes** :

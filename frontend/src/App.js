@@ -15,6 +15,7 @@ import MyProfile from "@/pages/MyProfile";
 import Reclaim from "@/pages/Reclaim";
 import Admin from "@/pages/Admin";
 import Entreprise from "@/pages/Entreprise";
+import Tarifs from "@/pages/Tarifs";
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/configurateur" element={<Configurator />} />
             <Route path="/entreprise" element={<Entreprise />} />
+            <Route path="/tarifs" element={<Tarifs />} />
             <Route path="/paiement/succes" element={<Success />} />
             <Route path="/paiement/annule" element={<Cancel />} />
             <Route path="/p/:slug" element={<PublicProfile />} />
