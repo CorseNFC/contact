@@ -3,6 +3,23 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.6 — Email verification + password reset dédiés (Feb 2026)
+- **Email verification à l'inscription** :
+  - `/auth/register` génère un token `purpose="verify"` (TTL 7 jours) et envoie un email dédié "Confirmez votre email" via Resend
+  - Nouveau endpoint `POST /api/auth/verify-email` `{token}` → flip `email_verified=true` + retourne session_token
+  - Nouveau endpoint `POST /api/auth/resend-verification` (authed) — invalide l'ancien token + renvoie l'email
+  - **Blocage** : `POST /api/subscribe/checkout` renvoie `403 email_not_verified` si l'user a un password mais pas d'email vérifié
+- **Password reset flow dédié** (distinct des magic-links de login) :
+  - `POST /api/auth/forgot-password` `{email, origin_url}` — toujours 200 (anti-enumeration), envoie un email "🔑 Réinitialiser votre mot de passe" (TTL 30 min)
+  - `POST /api/auth/reset-password` `{token, password}` — flip password + retourne session, clear login_attempts
+  - Utilise le même `magic_tokens_col` mais avec `purpose="reset"` (différent des tokens de login `purpose=None`)
+- **Nouvelles pages frontend** : `/verifier-email?token=` · `/mot-de-passe-oublie` · `/reinitialiser-mot-de-passe?token=`
+- **Login.jsx simplifié** : plus de "recevoir un lien" ambigu, remplacé par lien "Mot de passe oublié ?" → route `/mot-de-passe-oublie` dédiée
+- **Signup.jsx** : après register, écran "📧 Vérifiez vos emails" avec email pré-rempli + explicitation du blocage subscription
+- **Account.jsx** : bannière ambrée si `email_verified=false` avec bouton "Renvoyer l'email" (`authResendVerification`)
+- **Guide LC v2 mis à jour** : `LEAD_CAPTURE_SSO_INTEGRATION.md` — auth par password (fini l'OTP), lien vers `kallitag.fr/inscription` + `kallitag.fr/mot-de-passe-oublie` dans la page Login LC
+- **Tests régression** : 22/22 passants (12 existants + 10 nouveaux dans `test_auth_verify_reset.py`) — verify OK/invalid/reuse, resend, subscribe blocked when unverified, forgot 200 always, reset full flow
+
 ## Design v4.5 — Auth email + password + espace compte (Feb 2026)
 - **bcrypt** pour hasher les mots de passe (8 chars min), stockage `users_col.password_hash`
 - **Endpoints** (`/app/backend/server.py`) :

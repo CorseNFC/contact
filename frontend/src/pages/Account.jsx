@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Loader2, Lock, CreditCard, Trash2, Zap, Package, LogOut, ExternalLink, ShieldCheck } from "lucide-react";
+import { Loader2, Lock, CreditCard, Trash2, Zap, Package, LogOut, ExternalLink, ShieldCheck, MailCheck, Mail } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authChangePassword, authDeleteAccount, proPortal, getMe } from "@/lib/api";
+import { authChangePassword, authDeleteAccount, authResendVerification, proPortal, getMe } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 
 export default function Account() {
@@ -83,6 +83,37 @@ export default function Account() {
             <LogOut size={14} /> Se déconnecter
           </button>
         </div>
+
+        {/* Email verification banner */}
+        {me.email_verified === false && (
+          <div className="mt-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 flex items-start justify-between flex-wrap gap-3" data-testid="account-verify-banner">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 grid place-items-center text-amber-700 flex-shrink-0">
+                <Mail size={18} />
+              </div>
+              <div>
+                <p className="font-semibold text-[#4A3F2E]">Confirmez votre email pour souscrire</p>
+                <p className="text-xs text-[#6B5F4E] mt-1 max-w-md">
+                  Un email de vérification a été envoyé à <span className="font-semibold">{me.email}</span>. Vous ne pourrez pas activer d'abonnement Lead Capture avant confirmation.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                setBusy("verify");
+                try { await authResendVerification(); toast.success("Email renvoyé"); }
+                catch { toast.error("Impossible de renvoyer l'email"); }
+                finally { setBusy(""); }
+              }}
+              disabled={busy === "verify"}
+              data-testid="account-resend-verify"
+              className="text-xs font-semibold h-9 px-4 rounded-full border-2 border-amber-500 text-amber-700 hover:bg-amber-500 hover:text-white transition disabled:opacity-50 inline-flex items-center gap-1.5"
+            >
+              {busy === "verify" ? <Loader2 className="animate-spin" size={12} /> : <MailCheck size={13} />}
+              Renvoyer l'email
+            </button>
+          </div>
+        )}
 
         {/* Overview cards */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
