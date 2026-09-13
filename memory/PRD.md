@@ -3,6 +3,14 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.4 — Page présentation Lead Capture + lien navbar (Feb 2026)
+- **Nouvelle page publique** `/lead-capture` (`/app/frontend/src/pages/LeadCapture.jsx`) : hero, 3 stats clés (80% cartes jamais rappelées, 5s/lead, 3× plus de leads), 6 features détaillées (scan NFC, OCR carte papier, notes vocales, synthèse IA, offline PWA, multi-commerciaux), flow 4 étapes, dual CTA (ouvrir l'app vs voir tarifs)
+- **Lien navbar `Lead Capture`** (desktop & mobile) ajouté dans `/app/frontend/src/components/Navbar.jsx` entre "Configurer" et "Tarifs"
+- **URL app externe** : `https://leadcapture.kallitag.fr` (bouton "Ouvrir l'application" → `target="_blank"`)
+- **Route** enregistrée dans `App.js` : `/lead-capture` → `<LeadCapture />`
+- Design cohérent avec Tarifs.jsx : fond `#FAF7F0`, gradients or, motion animations, blur decorations, testids `lc-*`
+- Vérifié responsive : desktop 1920px OK, mobile 390px OK (blur décoratif clippé par `overflow-hidden` parent)
+
 ## Design v4.3 — Résolution user prioritaire par `stripe_customer_id` (Feb 2026)
 - **`_lc_set_active` refactoré** : ordre de résolution user = `stripe_customer_id` → `client_reference_id` (matches `users_col.id`) → `email` (fallback + upsert)
 - **`client_reference_id` passé au Checkout** : `subscribe_checkout` pré-provisionne l'user row et transmet `user.id` comme `client_reference_id` à Stripe → identification garantie même sans customer_id retour

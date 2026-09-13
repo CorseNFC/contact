@@ -18,6 +18,7 @@ import Entreprise from "@/pages/Entreprise";
 import Tarifs from "@/pages/Tarifs";
 import ClaimCard from "@/pages/ClaimCard";
 import Team from "@/pages/Team";
+import LeadCapture from "@/pages/LeadCapture";
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
             <Route path="/configurateur" element={<Configurator />} />
             <Route path="/entreprise" element={<Entreprise />} />
             <Route path="/tarifs" element={<Tarifs />} />
+            <Route path="/lead-capture" element={<LeadCapture />} />
             <Route path="/reclamer-carte/:token" element={<ClaimCard />} />
             <Route path="/mon-espace/equipe" element={<Team />} />
             <Route path="/paiement/succes" element={<Success />} />
