@@ -3,6 +3,27 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.5 — Auth email + password + espace compte (Feb 2026)
+- **bcrypt** pour hasher les mots de passe (8 chars min), stockage `users_col.password_hash`
+- **Endpoints** (`/app/backend/server.py`) :
+  - `POST /api/auth/register` `{email, password, name?}` → `{session_token, has_password}`
+  - `POST /api/auth/login` `{email, password}` → `{session_token, has_password}` — brute force 5 essais / 15 min lockout via `login_attempts_col`
+  - `POST /api/auth/set-password` `{token, password}` — pour les users legacy qui avaient magic link seul
+  - `POST /api/auth/change-password` (Bearer) `{old_password, new_password}`
+  - `DELETE /api/auth/delete-account` (Bearer) `{password}` — supprime user + magic tokens + OTP
+  - `GET /api/me` enrichi : `name, role, has_password, lead_capture_active, stripe_customer_id, subscription_plan, subscription_status, orders`
+- **`POST /api/lead-capture/auth` refactoré** : vérifie d'abord le password kallitag (via `verify_password` bcrypt), OTP conservé en fallback backward-compat
+- **Magic link redirection** : `/auth/callback` détecte `has_password=false` → redirige vers `/definir-mot-de-passe?token=...`
+- **Pages frontend** :
+  - `/connexion` — password + bouton "Recevoir un lien" en fallback (mot de passe oublié)
+  - `/inscription` — signup complet avec show/hide password
+  - `/definir-mot-de-passe?token=...` — set-password pour users legacy
+  - `/mon-compte` — 3 cards overview (LC status · abonnement · commandes) + Stripe billing portal + change password + zone danger (delete)
+- **Navbar** : "Mon compte" (loggé) · "Connexion / S'inscrire" (invité), lien mobile aussi
+- **Sécurité** : rate limiting brute force par `ip:email`, bcrypt cost par défaut, JWT session 30 jours (existant)
+- **Tests** : 12/12 passants (`tests/test_auth_password.py`) — register, login, wrong pw, /me, change-password, delete-account, brute force lockout, LC auth par password
+- **test_credentials.md mis à jour** avec les nouveaux endpoints
+
 ## Design v4.4 — Page présentation Lead Capture + lien navbar (Feb 2026)
 - **Nouvelle page publique** `/lead-capture` (`/app/frontend/src/pages/LeadCapture.jsx`) : hero, 3 stats clés (80% cartes jamais rappelées, 5s/lead, 3× plus de leads), 6 features détaillées (scan NFC, OCR carte papier, notes vocales, synthèse IA, offline PWA, multi-commerciaux), flow 4 étapes, dual CTA (ouvrir l'app vs voir tarifs)
 - **Lien navbar `Lead Capture`** (desktop & mobile) ajouté dans `/app/frontend/src/components/Navbar.jsx` entre "Configurer" et "Tarifs"

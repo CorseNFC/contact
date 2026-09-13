@@ -9,6 +9,7 @@ import io
 import logging
 import uuid
 import secrets
+import bcrypt
 import stripe
 import httpx
 import jwt
@@ -45,6 +46,7 @@ except Exception:
 scans_col = db["profile_scans"]
 subscriptions_col = db["subscriptions"]
 leads_col = db["leads"]
+login_attempts_col = db["login_attempts"]
 
 # --- Stripe ---
 # Support both STRIPE_API_KEY (per LC spec) and legacy STRIPE_SECRET_KEY
@@ -323,6 +325,53 @@ def bulk_discount_pct(qty: int) -> int:
 
 
 # ---------- Auth helpers ----------
+LOGIN_MAX_ATTEMPTS = 5
+LOGIN_LOCKOUT = timedelta(minutes=15)
+
+
+def hash_password(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(pw: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(pw.encode("utf-8"), (hashed or "").encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
+
+
+def _check_and_bump_login_attempts(email: str, ip: str) -> None:
+    """Raise 429 if the identifier is currently locked out."""
+    ident = f"{ip}:{email.lower()}"
+    now = datetime.now(timezone.utc)
+    doc = login_attempts_col.find_one({"identifier": ident})
+    if doc and doc.get("locked_until"):
+        locked_until = doc["locked_until"]
+        if isinstance(locked_until, str):
+            try: locked_until = datetime.fromisoformat(locked_until)
+            except Exception: locked_until = None
+        if locked_until and locked_until.tzinfo is None:
+            locked_until = locked_until.replace(tzinfo=timezone.utc)
+        if locked_until and locked_until > now:
+            raise HTTPException(429, "Trop de tentatives. Réessayez dans quelques minutes.")
+
+
+def _bump_login_failure(email: str, ip: str) -> None:
+    ident = f"{ip}:{email.lower()}"
+    now = datetime.now(timezone.utc)
+    doc = login_attempts_col.find_one({"identifier": ident}) or {}
+    attempts = int(doc.get("attempts", 0)) + 1
+    upd: Dict[str, Any] = {"attempts": attempts, "last_at": now.isoformat()}
+    if attempts >= LOGIN_MAX_ATTEMPTS:
+        upd["locked_until"] = (now + LOGIN_LOCKOUT).isoformat()
+        upd["attempts"] = 0  # reset after lockout window
+    login_attempts_col.update_one({"identifier": ident}, {"$set": upd}, upsert=True)
+
+
+def _reset_login_attempts(email: str, ip: str) -> None:
+    login_attempts_col.delete_one({"identifier": f"{ip}:{email.lower()}"})
+
+
 def make_session_token(email: str) -> str:
     now = datetime.now(timezone.utc)
     return jwt.encode(
@@ -1084,18 +1133,170 @@ async def verify_magic_link(token: str):
     if datetime.fromisoformat(doc["expires_at"]) < datetime.now(timezone.utc):
         raise HTTPException(400, "Lien expiré")
     magic_tokens_col.update_one({"token": token}, {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}})
-    session = make_session_token(doc["email"])
-    return {"session_token": session, "email": doc["email"]}
+    email_l = doc["email"].lower()
+    # Ensure user row exists
+    users_col.update_one(
+        {"email": email_l},
+        {"$setOnInsert": {
+            "id": str(uuid.uuid4()),
+            "email": email_l,
+            "role": "MANAGER",
+            "lead_capture_active": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    session = make_session_token(email_l)
+    user = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
+    return {"session_token": session, "email": email_l,
+            "has_password": bool(user.get("password_hash"))}
+
+
+# ---------- Email + password auth ----------
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=200)
+    name: Optional[str] = ""
+
+
+class LoginIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=200)
+
+
+class SetPasswordIn(BaseModel):
+    token: str          # magic-link token
+    password: str = Field(min_length=8, max_length=200)
+
+
+class ChangePasswordIn(BaseModel):
+    old_password: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
+class DeleteAccountIn(BaseModel):
+    password: Optional[str] = None  # required unless user has no password
+
+
+def _client_ip(request: Request) -> str:
+    return (request.headers.get("x-forwarded-for", "") or request.client.host or "?").split(",")[0].strip()
+
+
+@api_router.post("/auth/register")
+async def auth_register(body: RegisterIn, request: Request):
+    email_l = body.email.lower()
+    existing = users_col.find_one({"email": email_l}, {"_id": 0})
+    if existing and existing.get("password_hash"):
+        raise HTTPException(409, "Un compte existe déjà avec cet email — connectez-vous.")
+    now = datetime.now(timezone.utc).isoformat()
+    if existing:
+        users_col.update_one({"email": email_l}, {"$set": {
+            "password_hash": hash_password(body.password),
+            "name": (body.name or existing.get("name") or "").strip()[:120],
+            "password_set_at": now,
+        }})
+    else:
+        users_col.insert_one({
+            "id": str(uuid.uuid4()),
+            "email": email_l,
+            "role": "MANAGER",
+            "lead_capture_active": False,
+            "password_hash": hash_password(body.password),
+            "name": (body.name or "").strip()[:120],
+            "created_at": now,
+            "password_set_at": now,
+        })
+    _reset_login_attempts(email_l, _client_ip(request))
+    return {"session_token": make_session_token(email_l), "email": email_l, "has_password": True}
+
+
+@api_router.post("/auth/login")
+async def auth_login(body: LoginIn, request: Request):
+    email_l = body.email.lower()
+    ip = _client_ip(request)
+    _check_and_bump_login_attempts(email_l, ip)
+    user = users_col.find_one({"email": email_l}, {"_id": 0})
+    if not user or not user.get("password_hash"):
+        _bump_login_failure(email_l, ip)
+        raise HTTPException(401, "Email ou mot de passe incorrect")
+    if not verify_password(body.password, user["password_hash"]):
+        _bump_login_failure(email_l, ip)
+        raise HTTPException(401, "Email ou mot de passe incorrect")
+    _reset_login_attempts(email_l, ip)
+    return {"session_token": make_session_token(email_l), "email": email_l, "has_password": True}
+
+
+@api_router.post("/auth/set-password")
+async def auth_set_password(body: SetPasswordIn):
+    """For existing users who signed in via magic link and never set a password."""
+    doc = magic_tokens_col.find_one({"token": body.token, "used": False})
+    if not doc:
+        raise HTTPException(400, "Lien invalide ou déjà utilisé")
+    if datetime.fromisoformat(doc["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(400, "Lien expiré")
+    magic_tokens_col.update_one({"token": body.token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}})
+    email_l = doc["email"].lower()
+    now = datetime.now(timezone.utc).isoformat()
+    users_col.update_one(
+        {"email": email_l},
+        {"$set": {"password_hash": hash_password(body.password), "password_set_at": now},
+         "$setOnInsert": {
+            "id": str(uuid.uuid4()), "email": email_l, "role": "MANAGER",
+            "lead_capture_active": False, "created_at": now,
+         }},
+        upsert=True,
+    )
+    return {"session_token": make_session_token(email_l), "email": email_l, "has_password": True}
+
+
+@api_router.post("/auth/change-password")
+async def auth_change_password(body: ChangePasswordIn, user=Depends(get_current_user)):
+    email_l = user["email"].lower()
+    doc = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
+    if not doc.get("password_hash") or not verify_password(body.old_password, doc["password_hash"]):
+        raise HTTPException(401, "Mot de passe actuel incorrect")
+    users_col.update_one({"email": email_l}, {"$set": {
+        "password_hash": hash_password(body.new_password),
+        "password_set_at": datetime.now(timezone.utc).isoformat(),
+    }})
+    return {"ok": True}
+
+
+@api_router.delete("/auth/delete-account")
+async def auth_delete_account(body: DeleteAccountIn, user=Depends(get_current_user)):
+    email_l = user["email"].lower()
+    doc = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
+    if doc.get("password_hash"):
+        if not body.password or not verify_password(body.password, doc["password_hash"]):
+            raise HTTPException(401, "Mot de passe incorrect")
+    users_col.delete_one({"email": email_l})
+    magic_tokens_col.delete_many({"email": email_l})
+    lead_capture_otp_col.delete_many({"email": email_l})
+    return {"ok": True, "deleted": email_l}
 
 
 @api_router.get("/me")
 async def get_me(user=Depends(get_current_user)):
     email = user["email"]
+    email_l = email.lower()
     orders = list(orders_col.find(
         {"contact_email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}},
         {"_id": 0},
     ).sort("created_at", -1))
-    return {"email": email, "orders": orders}
+    urow = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
+    sub = subscriptions_col.find_one({"email": email_l}, {"_id": 0}, sort=[("updated_at", -1)])
+    return {
+        "email": email,
+        "name": urow.get("name", ""),
+        "role": urow.get("role", "MANAGER"),
+        "has_password": bool(urow.get("password_hash")),
+        "lead_capture_active": bool(urow.get("lead_capture_active", False)),
+        "stripe_customer_id": urow.get("stripe_customer_id"),
+        "subscription_plan": urow.get("subscription_plan"),
+        "subscription_status": (sub or {}).get("status"),
+        "orders": orders,
+    }
 
 
 class ProfileUpdate(BaseModel):
@@ -1780,46 +1981,41 @@ async def lead_capture_auth(
     body: LeadCaptureAuthIn,
     x_leadcapture_secret: Optional[str] = Header(None, alias="X-LeadCapture-Secret"),
 ):
-    """Step 2 — Lead Capture verifies credentials and reads subscription status."""
+    """SSO step — verify KalliTag email + password and return LC subscription snapshot.
+    Also accepts a still-valid OTP code (10-min TTL) for backward compat."""
     _lc_require_secret(x_leadcapture_secret)
     email_l = body.email.lower()
-
-    otp_doc = lead_capture_otp_col.find_one({"email": email_l, "used": False})
-    if not otp_doc:
-        raise HTTPException(401, "invalid_credentials")
-
-    # Expiry (BSON date compare; also handle rare case where TTL index hasn't purged yet)
-    exp = otp_doc.get("expires_at")
-    if isinstance(exp, str):
-        try: exp = datetime.fromisoformat(exp)
-        except Exception: exp = datetime.now(timezone.utc) - timedelta(seconds=1)
-    if exp.tzinfo is None:
-        exp = exp.replace(tzinfo=timezone.utc)
-    if exp < datetime.now(timezone.utc):
-        lead_capture_otp_col.delete_one({"_id": otp_doc["_id"]})
-        raise HTTPException(401, "invalid_credentials")
-
-    # Brute force guard: 5 attempts max per code
-    if int(otp_doc.get("attempts", 0)) >= 5:
-        lead_capture_otp_col.delete_one({"_id": otp_doc["_id"]})
-        raise HTTPException(401, "too_many_attempts")
-
-    if _lc_hash(body.password.strip(), email_l) != otp_doc.get("code_hash"):
-        lead_capture_otp_col.update_one({"_id": otp_doc["_id"]}, {"$inc": {"attempts": 1}})
-        raise HTTPException(401, "invalid_credentials")
-
-    # Consume OTP
-    lead_capture_otp_col.update_one({"_id": otp_doc["_id"]}, {"$set": {
-        "used": True, "used_at": datetime.now(timezone.utc).isoformat(),
-    }})
-
     user_doc = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
-    active = bool(user_doc.get("lead_capture_active", False))
-    return {
-        "ok": True,
-        "lead_capture_active": active,
-        "user": _lc_user_snapshot(email_l),
-    }
+
+    # 1) Preferred path — real password check against users_col.password_hash
+    if user_doc.get("password_hash") and verify_password(body.password, user_doc["password_hash"]):
+        return {
+            "ok": True,
+            "lead_capture_active": bool(user_doc.get("lead_capture_active", False)),
+            "user": _lc_user_snapshot(email_l),
+        }
+
+    # 2) Backward-compat — OTP path (still supported, will fade out)
+    otp_doc = lead_capture_otp_col.find_one({"email": email_l, "used": False})
+    if otp_doc:
+        exp = otp_doc.get("expires_at")
+        if isinstance(exp, str):
+            try: exp = datetime.fromisoformat(exp)
+            except Exception: exp = datetime.now(timezone.utc) - timedelta(seconds=1)
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp >= datetime.now(timezone.utc) and int(otp_doc.get("attempts", 0)) < 5:
+            if _lc_hash(body.password.strip(), email_l) == otp_doc.get("code_hash"):
+                lead_capture_otp_col.update_one({"_id": otp_doc["_id"]},
+                    {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}})
+                return {
+                    "ok": True,
+                    "lead_capture_active": bool(user_doc.get("lead_capture_active", False)),
+                    "user": _lc_user_snapshot(email_l),
+                }
+            lead_capture_otp_col.update_one({"_id": otp_doc["_id"]}, {"$inc": {"attempts": 1}})
+
+    raise HTTPException(401, "invalid_credentials")
 
 
 @api_router.get("/lead-capture/leads")

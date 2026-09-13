@@ -19,6 +19,9 @@ import Tarifs from "@/pages/Tarifs";
 import ClaimCard from "@/pages/ClaimCard";
 import Team from "@/pages/Team";
 import LeadCapture from "@/pages/LeadCapture";
+import Signup from "@/pages/Signup";
+import SetPassword from "@/pages/SetPassword";
+import Account from "@/pages/Account";
 
 function App() {
   return (
@@ -38,6 +41,9 @@ function App() {
             <Route path="/paiement/annule" element={<Cancel />} />
             <Route path="/p/:slug" element={<PublicProfile />} />
             <Route path="/connexion" element={<Login />} />
+            <Route path="/inscription" element={<Signup />} />
+            <Route path="/definir-mot-de-passe" element={<SetPassword />} />
+            <Route path="/mon-compte" element={<Account />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/mon-profil" element={<MyProfile />} />
             <Route path="/reclaim" element={<Reclaim />} />
