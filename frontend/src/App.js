@@ -18,6 +18,13 @@ import Entreprise from "@/pages/Entreprise";
 import Tarifs from "@/pages/Tarifs";
 import ClaimCard from "@/pages/ClaimCard";
 import Team from "@/pages/Team";
+import LeadCapture from "@/pages/LeadCapture";
+import Signup from "@/pages/Signup";
+import SetPassword from "@/pages/SetPassword";
+import Account from "@/pages/Account";
+import VerifyEmail from "@/pages/VerifyEmail";
+import ResetPassword from "@/pages/ResetPassword";
+import ForgotPassword from "@/pages/ForgotPassword";
 
 function App() {
   return (
@@ -30,12 +37,19 @@ function App() {
             <Route path="/configurateur" element={<Configurator />} />
             <Route path="/entreprise" element={<Entreprise />} />
             <Route path="/tarifs" element={<Tarifs />} />
+            <Route path="/lead-capture" element={<LeadCapture />} />
             <Route path="/reclamer-carte/:token" element={<ClaimCard />} />
             <Route path="/mon-espace/equipe" element={<Team />} />
             <Route path="/paiement/succes" element={<Success />} />
             <Route path="/paiement/annule" element={<Cancel />} />
             <Route path="/p/:slug" element={<PublicProfile />} />
             <Route path="/connexion" element={<Login />} />
+            <Route path="/inscription" element={<Signup />} />
+            <Route path="/definir-mot-de-passe" element={<SetPassword />} />
+            <Route path="/mot-de-passe-oublie" element={<ForgotPassword />} />
+            <Route path="/reinitialiser-mot-de-passe" element={<ResetPassword />} />
+            <Route path="/verifier-email" element={<VerifyEmail />} />
+            <Route path="/mon-compte" element={<Account />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/mon-profil" element={<MyProfile />} />
             <Route path="/reclaim" element={<Reclaim />} />

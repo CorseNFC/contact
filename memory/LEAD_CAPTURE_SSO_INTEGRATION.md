@@ -1,10 +1,13 @@
-# Intégration SSO Lead Capture ↔ KalliTag
+# Intégration SSO Lead Capture ↔ KalliTag (v2 — password auth)
 
 Tout le code à coller dans le projet Emergent `lead-capture-pwa-3` pour brancher
-l'auth OTP KalliTag + récupérer les leads capturés sur les profils NFC.
+l'auth **email + mot de passe KalliTag** + récupérer les leads captés sur les profils NFC.
+
+> ⚠️ **Changement important vs v1** : on n'utilise plus le code OTP à 6 chiffres.
+> L'utilisateur se connecte avec ses **identifiants KalliTag** (email + password créés sur kallitag.fr/inscription).
 
 ## 🔑 Étape 0 — Secret partagé
-Dans `/app/backend/.env` de ce projet (kallitag) :
+Depuis `/app/backend/.env` de kallitag :
 ```
 KALLITAG_SHARED_SECRET=klt_lc_5b3e9a1c7d24f68b0e3a9c5d7f1b4e82
 ```
@@ -12,16 +15,13 @@ URL API KalliTag prod : `https://kallitag.fr`
 
 ---
 
-## 📡 Endpoints exposés côté KalliTag (déjà en ligne, ne rien changer)
+## 📡 Endpoints exposés côté KalliTag (déjà en ligne)
 
 Tous demandent le header `X-LeadCapture-Secret: <KALLITAG_SHARED_SECRET>`.
 
-### 1. `POST /api/lead-capture/request-otp`
-Body : `{ "email": "user@example.com" }`
-Réponse : `{ "ok": true, "sent": true, "ttl_seconds": 600 }`
+### 1. `POST /api/lead-capture/auth`  🔄 password
+Body : `{ "email": "user@example.com", "password": "<mot de passe KalliTag>" }`
 
-### 2. `POST /api/lead-capture/auth`
-Body : `{ "email": "user@example.com", "password": "123456" }` *(password = OTP)*
 Réponse succès :
 ```json
 {
@@ -30,26 +30,16 @@ Réponse succès :
   "user": { "id": "...", "email": "...", "name": "...", "company": "...", "role": "MANAGER", "nfc_card_id": "..." }
 }
 ```
+Erreurs : `401 invalid_credentials`, `401 invalid_shared_secret`
 
-### 3. `GET /api/lead-capture/leads?email=<email>&limit=500&since=<iso>`  🆕
+L'endpoint accepte aussi les codes OTP (fallback backward-compat), mais tu peux ignorer.
+
+### 2. `GET /api/lead-capture/leads?email=&limit=&since=`
 Récupère TOUS les leads captés via les profils NFC de cet email.
-Réponse :
-```json
-{
-  "ok": true,
-  "email": "user@example.com",
-  "count": 3,
-  "leads": [
-    { "id": "...", "profile_slug": "jean-abc123", "owner_email": "...",
-      "name": "Visiteur X", "email": "visitor@ex.com", "phone": "+336...",
-      "message": "Intéressé par vos services", "created_at": "2026-02-13T14:22:10+00:00" }
-  ]
-}
-```
 Paramètres :
 - `email` (obligatoire)
 - `limit` (défaut 500, max 1000)
-- `since` (ISO date — optionnel, ne renvoie que les leads plus récents → **utile pour du polling incrémental**)
+- `since` (ISO date, optionnel — pour polling incrémental)
 
 ---
 
@@ -59,7 +49,7 @@ Ajoute dans `.env` :
 ```
 KALLITAG_API_URL=https://kallitag.fr
 KALLITAG_SHARED_SECRET=klt_lc_5b3e9a1c7d24f68b0e3a9c5d7f1b4e82
-JWT_SECRET=<génère_un_secret_aléatoire_long_de_64+_caractères>
+JWT_SECRET=<génère_un_secret_aléatoire_64+_caractères>
 ```
 
 Crée `backend/routes/auth.py` :
@@ -78,40 +68,27 @@ JWT_ALGO = "HS256"
 JWT_TTL_DAYS = 30
 
 
-class RequestOTPIn(BaseModel):
+class LoginIn(BaseModel):
     email: EmailStr
-
-
-class VerifyOTPIn(BaseModel):
-    email: EmailStr
-    code: str
+    password: str
 
 
 def _sign_session(user: dict) -> str:
     now = datetime.now(timezone.utc)
-    payload = {"sub": user["email"], "user": user,
-               "iat": int(now.timestamp()),
-               "exp": int((now + timedelta(days=JWT_TTL_DAYS)).timestamp())}
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+    return jwt.encode({
+        "sub": user["email"], "user": user,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(days=JWT_TTL_DAYS)).timestamp()),
+    }, JWT_SECRET, algorithm=JWT_ALGO)
 
 
-@router.post("/request-otp")
-async def request_otp(body: RequestOTPIn):
-    async with httpx.AsyncClient(timeout=15) as c:
-        r = await c.post(f"{KALLITAG_API_URL}/api/lead-capture/request-otp",
-                         headers={"X-LeadCapture-Secret": KALLITAG_SHARED_SECRET},
-                         json={"email": body.email})
-    if r.status_code != 200:
-        raise HTTPException(r.status_code, r.json().get("detail", "otp_send_failed"))
-    return {"ok": True, "ttl_seconds": r.json().get("ttl_seconds", 600)}
-
-
-@router.post("/verify-otp")
-async def verify_otp(body: VerifyOTPIn):
+@router.post("/login")
+async def login(body: LoginIn):
+    """Vérifie le password KalliTag et signe un JWT local."""
     async with httpx.AsyncClient(timeout=15) as c:
         r = await c.post(f"{KALLITAG_API_URL}/api/lead-capture/auth",
                          headers={"X-LeadCapture-Secret": KALLITAG_SHARED_SECRET},
-                         json={"email": body.email, "password": body.code.strip()})
+                         json={"email": body.email, "password": body.password})
     if r.status_code != 200:
         raise HTTPException(r.status_code, r.json().get("detail", "invalid_credentials"))
     data = r.json()
@@ -120,7 +97,7 @@ async def verify_otp(body: VerifyOTPIn):
     return {"ok": True, "token": _sign_session(data["user"]), "user": data["user"]}
 ```
 
-Crée `backend/deps.py` (middleware) :
+Crée `backend/deps.py` :
 ```python
 import os, jwt
 from typing import Optional
@@ -138,7 +115,7 @@ def current_user(authorization: Optional[str] = Header(None)) -> dict:
         raise HTTPException(401, "invalid_token")
 ```
 
-Crée `backend/routes/leads.py` (récupère les leads depuis KalliTag) :
+Crée `backend/routes/leads.py` :
 ```python
 import os, httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -151,12 +128,9 @@ KALLITAG_SHARED_SECRET = os.environ["KALLITAG_SHARED_SECRET"]
 
 
 @router.get("/leads")
-async def list_leads(since: str = "", limit: int = 500,
-                     user=Depends(current_user)):
-    """Proxy — fetch leads captured on KalliTag NFC profiles for this user."""
+async def list_leads(since: str = "", limit: int = 500, user=Depends(current_user)):
     params = {"email": user["email"], "limit": limit}
-    if since:
-        params["since"] = since
+    if since: params["since"] = since
     async with httpx.AsyncClient(timeout=20) as c:
         r = await c.get(f"{KALLITAG_API_URL}/api/lead-capture/leads",
                         params=params,
@@ -166,7 +140,7 @@ async def list_leads(since: str = "", limit: int = 500,
     return r.json()
 ```
 
-Enregistre les routers dans `server.py` :
+Enregistre dans `server.py` :
 ```python
 from routes.auth import router as auth_router
 from routes.leads import router as leads_router
@@ -174,13 +148,89 @@ app.include_router(auth_router)
 app.include_router(leads_router)
 ```
 
+**Supprime** toute ancienne route register/OTP côté Lead Capture — plus besoin.
+
 ---
 
 ## 🎨 Étape 2 — Frontend Lead Capture
 
-Page `frontend/src/pages/Login.jsx` (identique à la version précédente — je te la renvoie sur demande).
+`frontend/src/pages/Login.jsx` :
+```jsx
+import { useState } from "react";
+import axios from "axios";
 
-Nouveau hook `frontend/src/hooks/useLeads.js` :
+const API = process.env.REACT_APP_BACKEND_URL;
+
+export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError(""); setLoading(true);
+    try {
+      const { data } = await axios.post(`${API}/api/auth/login`, { email, password });
+      localStorage.setItem("lc_token", data.token);
+      localStorage.setItem("lc_user", JSON.stringify(data.user));
+      window.location.href = "/";
+    } catch (err) {
+      const d = err.response?.data?.detail;
+      if (d === "subscription_required") setError("Aucun abonnement Lead Capture actif. Souscrivez sur kallitag.fr/tarifs");
+      else setError("Email ou mot de passe incorrect");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0B0F17] text-white p-6">
+      <div className="max-w-md w-full bg-[#131926] rounded-2xl p-8">
+        <h1 className="text-2xl font-bold mb-2 text-[#D4AF37]">Connexion Lead Capture</h1>
+        <p className="text-slate-400 text-sm mb-6">Utilisez vos identifiants KalliTag.</p>
+
+        <form onSubmit={submit} className="space-y-4">
+          <input
+            data-testid="login-email"
+            type="email" required autoFocus
+            value={email} onChange={(e) => setEmail(e.target.value)}
+            placeholder="vous@entreprise.com"
+            className="w-full px-4 py-3 rounded-lg bg-[#0B0F17] border border-slate-700 focus:border-[#D4AF37] outline-none"
+          />
+          <input
+            data-testid="login-password"
+            type="password" required
+            value={password} onChange={(e) => setPassword(e.target.value)}
+            placeholder="Mot de passe"
+            className="w-full px-4 py-3 rounded-lg bg-[#0B0F17] border border-slate-700 focus:border-[#D4AF37] outline-none"
+          />
+          <button
+            data-testid="login-submit"
+            type="submit" disabled={loading || !email || !password}
+            className="w-full py-3 rounded-lg bg-[#D4AF37] text-[#0B0F17] font-semibold disabled:opacity-50"
+          >
+            {loading ? "Connexion…" : "Se connecter"}
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-xs text-slate-500">
+          Pas de compte ? <a href="https://kallitag.fr/inscription" className="text-[#D4AF37] hover:underline">Créez-en un sur kallitag.fr</a>
+        </p>
+        <p className="mt-2 text-center text-xs text-slate-500">
+          Mot de passe oublié ? <a href="https://kallitag.fr/mot-de-passe-oublie" className="text-[#D4AF37] hover:underline">Réinitialiser</a>
+        </p>
+
+        {error && (
+          <div data-testid="login-error" className="mt-4 p-3 rounded-lg bg-red-950/40 border border-red-900 text-red-300 text-sm">
+            {error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+Hook `frontend/src/hooks/useLeads.js` :
 ```jsx
 import { useEffect, useState } from "react";
 import axios from "axios";
@@ -190,29 +240,19 @@ const API = process.env.REACT_APP_BACKEND_URL;
 export default function useLeads() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
   const refresh = async () => {
-    setLoading(true); setError(null);
+    setLoading(true);
     try {
       const { data } = await axios.get(`${API}/api/leads`);
       setLeads(data.leads || []);
-    } catch (e) { setError(e); }
-    finally { setLoading(false); }
+    } finally { setLoading(false); }
   };
-
   useEffect(() => { refresh(); }, []);
-  return { leads, loading, error, refresh };
+  return { leads, loading, refresh };
 }
 ```
 
-Utilisation dans un composant :
-```jsx
-const { leads, loading, refresh } = useLeads();
-// leads = [{ id, name, email, phone, message, profile_slug, created_at }, …]
-```
-
-Ajoute l'interceptor axios (une fois dans `App.jsx` ou `index.js`) :
+Interceptors axios (dans `App.jsx` ou `index.js`) :
 ```js
 import axios from "axios";
 axios.interceptors.request.use((cfg) => {
@@ -232,10 +272,12 @@ axios.interceptors.response.use(r => r, (e) => {
 ---
 
 ## ✅ Checklist
-- [ ] Copier `KALLITAG_SHARED_SECRET` + `KALLITAG_API_URL` + `JWT_SECRET` dans le `.env` du projet Lead Capture
+- [ ] Coller `KALLITAG_SHARED_SECRET`, `KALLITAG_API_URL`, `JWT_SECRET` dans `.env` du projet Lead Capture
 - [ ] Créer `routes/auth.py` + `routes/leads.py` + `deps.py`
 - [ ] Enregistrer les routers dans `server.py`
-- [ ] Protéger les autres routes métier avec `Depends(current_user)`
-- [ ] Remplacer la page Login + ajouter le hook `useLeads`
-- [ ] Interceptors axios pour attacher le token
-- [ ] Tester : activer un compte via l'admin kallitag (`/admin` → onglet Lead Capture → toggle), demander OTP, se connecter, voir les leads
+- [ ] Protéger chaque route métier avec `Depends(current_user)`
+- [ ] **Supprimer** l'ancienne page/route register + OTP
+- [ ] Remplacer la page Login avec le composant ci-dessus
+- [ ] Ajouter les interceptors axios
+- [ ] Créer un compte test sur `https://kallitag.fr/inscription`, confirmer l'email, souscrire à un plan Lead Capture
+- [ ] Tester le login sur l'app Lead Capture avec ces identifiants

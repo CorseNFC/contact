@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, LogIn, LayoutDashboard, LogOut } from "lucide-react";
+import { Menu, LogIn, LayoutDashboard, LogOut, UserCircle } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -25,9 +25,10 @@ export default function Navbar() {
           <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 grid place-items-center text-slate-950 font-bold font-display">K</span>
           <span className="font-display font-bold text-lg tracking-tight">KalliTag</span>
         </Link>
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-7">
           {link("/", "Accueil", "nav-home")}
           {link("/configurateur", "Configurer", "nav-configurator")}
+          {link("/lead-capture", "Lead Capture", "nav-lead-capture")}
           {link("/tarifs", "Tarifs", "nav-pricing")}
           {link("/entreprise", "Entreprise", "nav-entreprise")}
           <a href="/#faq" className="text-sm font-medium text-[#4A3F2E] hover:text-[#1F1B16]" data-testid="nav-faq">FAQ</a>
@@ -35,17 +36,22 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              <Link to="/mon-profil" className="kt-btn-ghost text-sm hidden sm:inline-flex items-center gap-2" data-testid="nav-dashboard">
-                <LayoutDashboard size={14} /> Mon espace
+              <Link to="/mon-compte" className="kt-btn-ghost text-sm hidden sm:inline-flex items-center gap-2" data-testid="nav-account">
+                <UserCircle size={14} /> Mon compte
               </Link>
               <button onClick={() => { logout(); nav("/"); }} className="text-[#6B5F4E] hover:text-[#1F1B16] p-2" data-testid="nav-logout" title="Se déconnecter">
                 <LogOut size={16} />
               </button>
             </>
           ) : (
-            <Link to="/connexion" className="text-sm text-[#4A3F2E] hover:text-[#1F1B16] hidden sm:inline-flex items-center gap-1.5" data-testid="nav-login">
-              <LogIn size={14} /> Connexion
-            </Link>
+            <>
+              <Link to="/connexion" className="text-sm text-[#4A3F2E] hover:text-[#1F1B16] hidden sm:inline-flex items-center gap-1.5" data-testid="nav-login">
+                <LogIn size={14} /> Connexion
+              </Link>
+              <Link to="/inscription" className="text-sm font-semibold text-[#1F1B16] hover:text-amber-600 hidden md:inline-flex" data-testid="nav-signup">
+                S'inscrire
+              </Link>
+            </>
           )}
           <Link to="/configurateur" className="kt-btn-gold text-sm hidden sm:inline-flex" data-testid="nav-cta-order">
             Commander
@@ -59,9 +65,13 @@ export default function Navbar() {
           <div className="md:hidden border-t border-[#1F1B16]/8 bg-[#FAF7F0]/95 px-4 py-4 space-y-3">
           {link("/", "Accueil", "nav-home-mobile")}
           <div />{link("/configurateur", "Configurer", "nav-configurator-mobile")}
+          <div />{link("/lead-capture", "Lead Capture", "nav-lead-capture-mobile")}
           <div />{link("/tarifs", "Tarifs", "nav-pricing-mobile")}
           <div />{link("/entreprise", "Entreprise", "nav-entreprise-mobile")}
-          <div />{user ? link("/mon-profil", "Mon espace", "nav-dashboard-mobile") : link("/connexion", "Connexion", "nav-login-mobile")}
+          <div />{user ? link("/mon-compte", "Mon compte", "nav-account-mobile") : link("/connexion", "Connexion", "nav-login-mobile")}
+          {!user && <>
+            <div />{link("/inscription", "S'inscrire", "nav-signup-mobile")}
+          </>}
         </div>
       )}
     </nav>

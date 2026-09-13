@@ -14,7 +14,15 @@ export default function AuthCallback() {
     const token = params.get("token");
     if (!token) { setError("Lien invalide"); return; }
     verifyMagicLink(token)
-      .then(async (r) => { await auth.login(r.session_token); nav("/mon-profil", { replace: true }); })
+      .then(async (r) => {
+        await auth.login(r.session_token);
+        // If the user has never set a password, force them through the /definir-mot-de-passe page
+        if (r.has_password === false) {
+          nav(`/definir-mot-de-passe?token=${encodeURIComponent(token)}`, { replace: true });
+        } else {
+          nav("/mon-compte", { replace: true });
+        }
+      })
       .catch(() => setError("Lien expiré ou déjà utilisé."));
     // eslint-disable-next-line
   }, []);

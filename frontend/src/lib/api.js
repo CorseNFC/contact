@@ -60,6 +60,15 @@ export const adminSetLcActive = async (email, active) => (await api.post("/admin
 
 export const requestMagicLink = async (email, origin_url) => (await api.post("/auth/request-link", { email, origin_url })).data;
 export const verifyMagicLink = async (token) => (await api.get("/auth/verify", { params: { token } })).data;
+export const authRegister = async (payload) => (await api.post("/auth/register", payload)).data;
+export const authLogin = async (email, password) => (await api.post("/auth/login", { email, password })).data;
+export const authSetPassword = async (token, password) => (await api.post("/auth/set-password", { token, password })).data;
+export const authChangePassword = async (old_password, new_password) => (await api.post("/auth/change-password", { old_password, new_password })).data;
+export const authDeleteAccount = async (password) => (await api.delete("/auth/delete-account", { data: { password } })).data;
+export const authVerifyEmail = async (token) => (await api.post("/auth/verify-email", { token })).data;
+export const authResendVerification = async () => (await api.post("/auth/resend-verification")).data;
+export const authForgotPassword = async (email, origin_url) => (await api.post("/auth/forgot-password", { email, origin_url })).data;
+export const authResetPassword = async (token, password) => (await api.post("/auth/reset-password", { token, password })).data;
 export const getMe = async () => (await api.get("/me")).data;
 export const updateProfile = async (slug, profile) => (await api.patch(`/me/profile/${slug}`, { profile })).data;
 export const uploadAvatar = async (file) => {
