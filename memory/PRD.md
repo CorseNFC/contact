@@ -3,6 +3,18 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.7 — Intégration Lead Capture complète (Feb 2026)
+
+- **Alias endpoint `/api/leadcapture/auth`** (sans tiret) — identique à `/api/lead-capture/auth`, pour s'aligner sur la spec côté LC
+- **`GET /api/profile/{slug}` normalisé** : renvoie désormais `profile: {firstName, lastName, company, role, email, phone, website, linkedin}` (shape attendue par l'importer LC), avec fallback split du champ `name` si `first_name/last_name` absents. `profile_raw` conservé pour compat
+- **Email de vérification enrichi** : bouton bleu "⚡ Accéder à Lead Capture" (link `leadcapture.kallitag.fr/decouvrir`) + tagline "7 jours d'essai gratuit sans carte bancaire" en tête d'email, le bouton "Confirmer mon email" reste en secondaire
+- **`/tarifs?plan=<slug>` pré-sélectionne** un plan avec un ring amber renforcé + ruban "RECOMMANDÉ POUR VOUS" + scroll auto sur la carte. Mapping :
+  - `lead-capture` → `lead_capture`
+  - `all-in-one` → `all_in_one`
+  - `entreprise` (ou `team`) → `team`
+- **Inscription sans CB** : `/inscription` ne demande jamais de CB — le paiement démarre uniquement quand l'utilisateur choisit un plan sur `/tarifs`. La logique "7 jours d'essai" est portée par Lead Capture (kallitag renvoie `lead_capture_active=false` pour un compte fresh)
+- **Tests régression** : 5/5 passants dans `tests/test_lc_integration.py` — profil normalisé, split fullname, 404, alias sans tiret 401 sans secret, alias 401 sur invalid_credentials, endpoint historique avec tiret intact
+
 ## Design v4.6 — Email verification + password reset dédiés (Feb 2026)
 - **Email verification à l'inscription** :
   - `/auth/register` génère un token `purpose="verify"` (TTL 7 jours) et envoie un email dédié "Confirmez votre email" via Resend

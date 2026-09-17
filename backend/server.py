@@ -480,6 +480,10 @@ async def get_public_profile(slug: str):
     order = orders_col.find_one({"profile_slug": slug, "payment_status": "paid"}, {"_id": 0})
     if not order:
         order = orders_col.find_one({"profile_slug": slug}, {"_id": 0})
+    profile_raw: Dict[str, Any] = {}
+    product_name = None
+    product_id = None
+    product_kind = "profile"
     if not order:
         # Fall back to bulk order card lookup
         order = orders_col.find_one({"profile_cards.slug": slug}, {"_id": 0})
@@ -487,16 +491,46 @@ async def get_public_profile(slug: str):
             card = next((c for c in (order.get("profile_cards") or []) if c.get("slug") == slug), None)
             if card:
                 product = PRODUCT_CATALOG.get(order.get("product_id"), {})
-                return {"slug": slug, "profile": card.get("profile", {}),
-                        "product_name": order.get("product_name"),
-                        "product_id": order.get("product_id"),
-                        "product_kind": product.get("kind", "profile")}
-    if not order:
+                profile_raw = card.get("profile", {}) or {}
+                product_name = order.get("product_name")
+                product_id = order.get("product_id")
+                product_kind = product.get("kind", "profile")
+    else:
+        product = PRODUCT_CATALOG.get(order.get("product_id"), {})
+        profile_raw = order.get("profile", {}) or {}
+        product_name = order.get("product_name")
+        product_id = order.get("product_id")
+        product_kind = product.get("kind", "profile")
+    if not profile_raw and not order:
         raise HTTPException(404, "Profil introuvable")
-    product = PRODUCT_CATALOG.get(order.get("product_id"), {})
-    return {"slug": slug, "profile": order.get("profile", {}),
-            "product_name": order.get("product_name"), "product_id": order.get("product_id"),
-            "product_kind": product.get("kind", "profile")}
+
+    # Normalized shape expected by Lead Capture importer
+    full_name = (profile_raw.get("name") or "").strip()
+    first_name = profile_raw.get("first_name") or ""
+    last_name = profile_raw.get("last_name") or ""
+    if not first_name and full_name:
+        parts = full_name.split(" ", 1)
+        first_name = parts[0]
+        last_name = parts[1] if len(parts) > 1 else ""
+    links = profile_raw.get("links") or {}
+    normalized = {
+        "firstName": first_name,
+        "lastName": last_name,
+        "company": profile_raw.get("company") or "",
+        "role": profile_raw.get("job_title") or profile_raw.get("role") or "",
+        "email": profile_raw.get("email") or "",
+        "phone": profile_raw.get("phone") or "",
+        "website": links.get("website") or profile_raw.get("website") or "",
+        "linkedin": links.get("linkedin") or profile_raw.get("linkedin") or "",
+    }
+    return {
+        "slug": slug,
+        "profile": normalized,
+        "profile_raw": profile_raw,
+        "product_name": product_name,
+        "product_id": product_id,
+        "product_kind": product_kind,
+    }
 
 
 # ---------- Bulk B2B checkout ----------
@@ -1301,13 +1335,23 @@ async def _send_verification_email(email_l: str, origin_hint: Optional[str] = No
     })
     base = origin_hint or PUBLIC_BASE_URL or ""
     link = f"{base.rstrip('/')}/verifier-email?token={token}"
+    lc_link = "https://leadcapture.kallitag.fr/decouvrir"
     subject = f"Confirmez votre email — {EMAIL_FROM_NAME}"
     html = f"""<table role="presentation" width="100%" style="background:#0B0F17;padding:24px">
-<tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,sans-serif;color:#F8FAFC">
+<tr><td style="max-width:520px;margin:0 auto;background:#131926;border-radius:16px;padding:32px;font-family:Arial,Helvetica,sans-serif;color:#F8FAFC">
 <h1 style="color:#D4AF37;margin:0 0 8px;font-size:22px">Bienvenue chez {escape(EMAIL_FROM_NAME)} 👋</h1>
-<p style="color:#94A3B8;margin:0 0 20px;font-size:14px">Il ne reste plus qu'à confirmer votre adresse pour activer votre compte et pouvoir souscrire à un abonnement. Ce lien expire dans 7 jours.</p>
-<p style="margin:24px 0"><a href="{escape(link)}" style="display:inline-block;padding:14px 28px;background:#D4AF37;color:#0B0F17;text-decoration:none;border-radius:9999px;font-weight:bold">Confirmer mon email</a></p>
-<p style="color:#64748B;font-size:12px;margin:24px 0 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">Si vous n'êtes pas à l'origine de cette inscription, ignorez cet email.</p>
+<p style="color:#94A3B8;margin:0 0 16px;font-size:15px;line-height:1.5">Votre compte est prêt ✅ — accédez à <b style="color:#F8FAFC">Lead Capture</b> et profitez de vos <b style="color:#D4AF37">7 jours d'essai gratuit</b>, sans carte bancaire.</p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px auto;">
+  <tr><td align="center" bgcolor="#2563eb" style="border-radius:12px;">
+    <a href="{escape(lc_link)}" target="_blank"
+       style="display:inline-block;padding:14px 28px;font-family:Arial,Helvetica,sans-serif;
+              font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;
+              border-radius:12px;background-color:#2563eb;">⚡ Accéder à Lead Capture</a>
+  </td></tr>
+</table>
+<p style="color:#94A3B8;margin:24px 0 10px;font-size:13px;line-height:1.5">Pour finaliser votre inscription et pouvoir souscrire à un abonnement payant plus tard, confirmez votre adresse en cliquant ci-dessous. Ce lien expire dans 7 jours.</p>
+<p style="margin:12px 0 0"><a href="{escape(link)}" style="display:inline-block;padding:12px 22px;background:#D4AF37;color:#0B0F17;text-decoration:none;border-radius:9999px;font-weight:bold;font-size:14px">Confirmer mon email</a></p>
+<p style="color:#64748B;font-size:12px;margin:24px 0 0;border-top:1px solid rgba(255,255,255,0.08);padding-top:16px">Si vous n'êtes pas à l'origine de cette inscription, ignorez simplement cet email.</p>
 </td></tr></table>"""
     await send_email(to=email_l, subject=subject, html=html)
 
@@ -2155,6 +2199,15 @@ async def lead_capture_auth(
             lead_capture_otp_col.update_one({"_id": otp_doc["_id"]}, {"$inc": {"attempts": 1}})
 
     raise HTTPException(401, "invalid_credentials")
+
+
+# Alias without hyphen — matches the LC spec `/api/leadcapture/auth`
+@api_router.post("/leadcapture/auth")
+async def lead_capture_auth_alias(
+    body: LeadCaptureAuthIn,
+    x_leadcapture_secret: Optional[str] = Header(None, alias="X-LeadCapture-Secret"),
+):
+    return await lead_capture_auth(body, x_leadcapture_secret)
 
 
 @api_router.get("/lead-capture/leads")
