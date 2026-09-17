@@ -14,17 +14,36 @@ const PLAN_ACCENTS = {
   team:         "from-indigo-400 to-indigo-700",
 };
 
+// Public slugs used by Lead Capture (?plan=lead-capture) → internal plan ids
+const SLUG_TO_ID = {
+  "lead-capture": "lead_capture",
+  "all-in-one":   "all_in_one",
+  "entreprise":   "team",
+  "team":         "team",
+};
+
 export default function Tarifs() {
   const [plans, setPlans] = useState(null);
   const [interval, setInterval] = useState("monthly");
   const [email, setEmail] = useState("");
   const [seatsByPlan, setSeatsByPlan] = useState({ team: 3 });
   const [loadingPlan, setLoadingPlan] = useState(null);
+  const [highlightId, setHighlightId] = useState(null);
   const [params] = useSearchParams();
 
   useEffect(() => {
     api.get("/subscription-plans").then((r) => setPlans(r.data.plans));
     if (params.get("cancelled")) toast.info("Paiement annulé — vous pouvez réessayer.");
+    const slug = (params.get("plan") || "").toLowerCase();
+    const id = SLUG_TO_ID[slug];
+    if (id) {
+      setHighlightId(id);
+      // Scroll after cards are painted
+      setTimeout(() => {
+        const el = document.querySelector(`[data-testid="plan-${id}"]`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 350);
+    }
   }, [params]);
 
   const subscribe = async (plan) => {
@@ -103,14 +122,23 @@ export default function Tarifs() {
                 const price = interval === "yearly" ? p.price_yearly_cents : p.price_monthly_cents;
                 const Icon = PLAN_ICONS[p.id] || Sparkles;
                 const gradient = PLAN_ACCENTS[p.id] || PLAN_ACCENTS.lead_capture;
-                const isPopular = p.badge === "PLUS POPULAIRE";
+                const isHighlighted = highlightId === p.id;
+                const isPopular = p.badge === "PLUS POPULAIRE" || isHighlighted;
                 return (
                   <motion.div
                     key={p.id}
                     initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                    className={`relative rounded-3xl bg-white p-7 border shadow-md hover:shadow-xl transition ${isPopular ? "border-amber-500 ring-2 ring-amber-500/40 md:scale-105" : "border-[#1F1B16]/10"}`}
+                    className={`relative rounded-3xl bg-white p-7 border shadow-md hover:shadow-xl transition ${isHighlighted ? "border-amber-500 ring-4 ring-amber-500/50 md:scale-105" : isPopular ? "border-amber-500 ring-2 ring-amber-500/40 md:scale-105" : "border-[#1F1B16]/10"}`}
                     data-testid={`plan-${p.id}`}
                   >
+                    {isHighlighted && (
+                      <span data-testid={`plan-${p.id}-preselected`} className="sr-only">preselected</span>
+                    )}
+                    {isHighlighted && !p.badge && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-white bg-gradient-to-r from-amber-500 to-amber-700 shadow-md">
+                        RECOMMANDÉ POUR VOUS
+                      </div>
+                    )}
                     {p.badge && (
                       <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-white bg-gradient-to-r ${gradient} shadow-md`}>
                         {p.badge}
