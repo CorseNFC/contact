@@ -24,7 +24,7 @@ const PLANS = [
     subtitle: "1 utilisateur",
     seats_label: "1 licence",
     // Internal Stripe wiring — do NOT change unless Stripe products change too
-    checkout: { plan_id: "lead_capture", seats: 1 },
+  checkout: { plan_id: "solo", seats: 1 },
     features: [
       "OCR carte de visite IA",
       "Scan NFC KalliTag + saisie manuelle",
@@ -46,7 +46,7 @@ const PLANS = [
     seats_label: "2 à 9 licences",
     badge: "POPULAIRE",
     highlight: true,
-    checkout: { plan_id: "team", seats: 3, min: 2, max: 9 },
+    checkout: { plan_id: "equipe", seats: 3, min: 2, max: 9 },
     features: [
       "Tout le plan Solo",
       "Dashboard manager + collaboration temps réel",
@@ -65,7 +65,7 @@ const PLANS = [
     subtitle: "10 licences et +",
     seats_label: "10 licences et +",
     badge: "MEILLEUR TARIF",
-    checkout: { plan_id: "team", seats: 10, min: 10, max: 50 },
+    checkout: { plan_id: "entreprise", seats: 10, min: 10, max: 50 },
     features: [
       "Tout le plan Équipe",
       "Archivage automatique CRM",
