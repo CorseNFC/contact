@@ -145,20 +145,30 @@ PRODUCT_CATALOG = {
 }
 
 # ---------- Subscription catalog ----------
+# NEW 3-tier grid aligned with /tarifs marketing (Feb 2026):
+#   Solo       — 24.90€ /  seat / month, 1 seat
+#   Équipe     — 21.90€ / seat / month, 2-9 seats  (badge "POPULAIRE")
+#   Entreprise — 19.90€ / seat / month, 10+ seats  (badge "MEILLEUR TARIF", floor price)
+#
+# ⚠️ Stripe Dashboard: the 6 Prices below (monthly + yearly for each plan)
+# MUST exist as recurring Prices with matching lookup_keys. Yearly = 10× monthly
+# (i.e. ≈2 months offered).
 SUBSCRIPTION_PLANS = {
-    "lead_capture": {
-        "id": "lead_capture",
-        "name": "Lead Capture",
-        "tagline": "Le module qui transforme vos rencontres en clients",
-        "price_monthly_cents": 1990,
-        "price_yearly_cents": 19900,   # ≈ 2 mois offerts
-        "lookup_key_monthly": "sub_lead_capture_monthly",
-        "lookup_key_yearly":  "sub_lead_capture_yearly",
+    "solo": {
+        "id": "solo",
+        "name": "Solo",
+        "tagline": "1 utilisateur — parfait pour indépendant",
+        "price_monthly_cents": 2490,
+        "price_yearly_cents":  24900,
+        "lookup_key_monthly": "sub_solo_monthly",
+        "lookup_key_yearly":  "sub_solo_yearly",
         "features": [
-            "Capture illimitée de leads via NFC",
-            "Dashboard temps réel",
-            "Export CSV / synchro CRM",
-            "Emails automatiques aux prospects",
+            "OCR carte de visite IA",
+            "Scan NFC KalliTag + saisie manuelle",
+            "Débriefs vocaux IA",
+            "Formulaire auto-rempli",
+            "Score de conversion IA",
+            "Export PDF + relance email automatique",
             "1 utilisateur",
         ],
         "activates_lead_capture": True,
@@ -166,53 +176,63 @@ SUBSCRIPTION_PLANS = {
         "min_seats": 1,
         "max_seats": 1,
     },
-    "all_in_one": {
-        "id": "all_in_one",
-        "name": "All-in-One",
-        "tagline": "Logiciel Lead Capture + carte NFC Prestige offerte",
-        "price_monthly_cents": 2990,
-        "price_yearly_cents": 29900,
-        "lookup_key_monthly": "sub_all_in_one_monthly",
-        "lookup_key_yearly":  "sub_all_in_one_yearly",
+    "equipe": {
+        "id": "equipe",
+        "name": "Équipe",
+        "tagline": "2 à 9 licences — tarif dégressif dès 2 licences",
+        "price_monthly_cents": 2190,   # par siège
+        "price_yearly_cents":  21900,
+        "lookup_key_monthly": "sub_equipe_monthly",
+        "lookup_key_yearly":  "sub_equipe_yearly",
         "features": [
-            "Tout Lead Capture",
-            "1 Carte NFC Prestige offerte (39,90 €)",
-            "Profil web KalliTag illimité",
-            "Statistiques avancées",
-            "Support prioritaire",
-        ],
-        "activates_lead_capture": True,
-        "includes_nfc_card_qty": 1,
-        "min_seats": 1,
-        "max_seats": 1,
-        "badge": "PLUS POPULAIRE",
-    },
-    "team": {
-        "id": "team",
-        "name": "Équipe / Entreprise",
-        "tagline": "Pour équipes commerciales (3 licences minimum)",
-        "price_monthly_cents": 3990,   # par licence
-        "price_yearly_cents": 39900,
-        "lookup_key_monthly": "sub_team_monthly",
-        "lookup_key_yearly":  "sub_team_yearly",
-        "features": [
-            "Tout All-in-One × N licences",
-            "N cartes NFC Prestige offertes",
-            "Dashboard multi-utilisateurs",
+            "Tout le plan Solo",
+            "Dashboard manager + collaboration temps réel",
+            "Sync CRM 1-clic (HubSpot & Salesforce)",
             "Rôles Manager / Commercial",
-            "SSO KalliTag intégré",
-            "Support dédié + onboarding",
+            "2 à 9 licences",
         ],
         "activates_lead_capture": True,
         "includes_nfc_card_qty": 1,   # per seat
-        "min_seats": 3,
-        "max_seats": 50,
-        "badge": "ENTREPRISE",
+        "min_seats": 2,
+        "max_seats": 9,
+        "badge": "POPULAIRE",
     },
+    "entreprise": {
+        "id": "entreprise",
+        "name": "Entreprise",
+        "tagline": "10 licences et + — prix plancher",
+        "price_monthly_cents": 1990,   # par siège (plancher)
+        "price_yearly_cents":  19900,
+        "lookup_key_monthly": "sub_entreprise_monthly",
+        "lookup_key_yearly":  "sub_entreprise_yearly",
+        "features": [
+            "Tout le plan Équipe",
+            "Archivage automatique CRM",
+            "Comparateur différentiel IA entre commerciaux",
+            "Synthèse de compte + graphe d'évolution",
+            "10 licences et plus (prix plancher)",
+            "Support dédié + onboarding équipe",
+        ],
+        "activates_lead_capture": True,
+        "includes_nfc_card_qty": 1,   # per seat
+        "min_seats": 10,
+        "max_seats": 50,
+        "badge": "MEILLEUR TARIF",
+    },
+}
+
+# Legacy plan IDs (backward-compat) — old checkout links keep working.
+# They map to the new tiers so existing customers don't see anything change.
+LEGACY_PLAN_ALIASES = {
+    "lead_capture": "solo",
+    "all_in_one":   "solo",
+    "team":         "equipe",
 }
 
 
 def _resolve_lookup(plan_id: str, interval: str) -> tuple:
+    # Accept legacy plan ids seamlessly
+    plan_id = LEGACY_PLAN_ALIASES.get(plan_id, plan_id)
     plan = SUBSCRIPTION_PLANS.get(plan_id)
     if not plan:
         raise HTTPException(404, "Plan introuvable")
@@ -1901,7 +1921,7 @@ async def list_subscription_plans():
 
 
 class SubscribeIn(BaseModel):
-    plan_id: Literal["lead_capture", "all_in_one", "team"]
+    plan_id: Literal["solo", "equipe", "entreprise", "lead_capture", "all_in_one", "team"]
     interval: Literal["monthly", "yearly"] = "monthly"
     email: EmailStr
     seats: int = 1

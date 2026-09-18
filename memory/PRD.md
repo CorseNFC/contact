@@ -3,6 +3,44 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.10 — Alignement Stripe Products avec la grille marketing (Feb 2026)
+
+- **`SUBSCRIPTION_PLANS` refondu** avec les 3 tiers alignés `/tarifs` :
+  - `solo` — 2490 cents/siège/mois · lookup `sub_solo_monthly` / `sub_solo_yearly` · 1 siège
+  - `equipe` — 2190 cents/siège/mois · lookup `sub_equipe_monthly` / `sub_equipe_yearly` · 2 à 9 sièges · badge POPULAIRE
+  - `entreprise` — 1990 cents/siège/mois · lookup `sub_entreprise_monthly` / `sub_entreprise_yearly` · 10-50 sièges · badge MEILLEUR TARIF
+- **Backward compat** : `LEGACY_PLAN_ALIASES` mappe `lead_capture` → `solo`, `all_in_one` → `solo`, `team` → `equipe`. Les anciens liens de checkout continuent de fonctionner.
+- **`_resolve_lookup` accepte les alias** en entrée avant de résoudre le plan.
+- **`Literal[plan_id]` élargi** aux 3 nouveaux + 3 legacy pour Pydantic validation.
+- **Tarifs.jsx CTA** : `plan_id` mis à jour → `solo`, `equipe`, `entreprise` (correspond aux nouveaux Stripe products).
+
+## ⚠️ Action Stripe Dashboard requise
+Pour que le checkout charge réellement les nouveaux montants, il faut créer 6 Prices dans Stripe (Products → Add product OR Add Price to existing) :
+
+| Produit | Récurrence | Prix | Lookup key |
+|---------|-----------|------|-----------|
+| Kallitag Lead Capture Solo | Mensuel | 24,90 € | `sub_solo_monthly` |
+| Kallitag Lead Capture Solo | Annuel | 249,00 € | `sub_solo_yearly` |
+| Kallitag Lead Capture Équipe | Mensuel (par siège) | 21,90 € | `sub_equipe_monthly` |
+| Kallitag Lead Capture Équipe | Annuel (par siège) | 219,00 € | `sub_equipe_yearly` |
+| Kallitag Lead Capture Entreprise | Mensuel (par siège) | 19,90 € | `sub_entreprise_monthly` |
+| Kallitag Lead Capture Entreprise | Annuel (par siège) | 199,00 € | `sub_entreprise_yearly` |
+
+Chaque Price doit être `Recurring` et pour Équipe/Entreprise `Quantity` (le nombre de sièges est envoyé par le Checkout). Tant que ces Prices n'existent pas côté Stripe, le CTA renverra une 500 "Prix Stripe manquant pour 'sub_solo_monthly'".
+
+## Design v4.9 — Refonte pricing marketing (Feb 2026)
+
+- **`/tarifs` réécrit** avec grille dégressive hardcodée (display only, Stripe intact) :
+  - **Solo** — 24,90 € / mois · 1 utilisateur
+  - **Équipe** — 21,90 € / licence / mois · 2 à 9 licences · badge **POPULAIRE** (mis en avant, ring amber)
+  - **Entreprise** — 19,90 € / licence / mois · 10 licences et + · badge **MEILLEUR TARIF**
+- **Badge global** "Essai gratuit 7 jours · sans carte bancaire" en tête de page + mention "Tarif dégressif : le prix par licence baisse dès 2 licences"
+- **Slugs `?plan=solo|equipe|entreprise`** (aliases legacy `lead-capture/all-in-one/team` conservés)
+- **CTA S'abonner** → toujours `/subscribe/checkout` avec plan_id Stripe correct (`lead_capture` pour solo, `team` avec seats 2-9 pour equipe, `team` avec seats 10+ pour entreprise). **Tunnel Stripe intact**.
+- **Features par palier** (chaque niveau inclut le précédent) : Solo = OCR/NFC/débriefs vocaux/score/export · Équipe = + dashboard manager + sync CRM HubSpot/Salesforce · Entreprise = + archivage auto CRM + comparateur IA + synthèse compte + graphe
+- **Compteur licences** actif sur Équipe (2-9) et Entreprise (10-50) — le nombre alimente Stripe seats
+- Vérifié desktop 1920px + mobile 390px (zéro overflow, cards empilées proprement)
+
 ## Design v4.8 — Feature-gating LC (plan / sièges / essai anti-abus) (Feb 2026)
 
 - **Nouvelle collection `lead_capture_trial_ledger`** — index unique sur `email`, permanent, **survit à la suppression du compte** (anti-abus : 1 essai par email à vie)
