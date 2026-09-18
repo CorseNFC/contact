@@ -3,6 +3,19 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.9 — Refonte pricing marketing (Feb 2026)
+
+- **`/tarifs` réécrit** avec grille dégressive hardcodée (display only, Stripe intact) :
+  - **Solo** — 24,90 € / mois · 1 utilisateur
+  - **Équipe** — 21,90 € / licence / mois · 2 à 9 licences · badge **POPULAIRE** (mis en avant, ring amber)
+  - **Entreprise** — 19,90 € / licence / mois · 10 licences et + · badge **MEILLEUR TARIF**
+- **Badge global** "Essai gratuit 7 jours · sans carte bancaire" en tête de page + mention "Tarif dégressif : le prix par licence baisse dès 2 licences"
+- **Slugs `?plan=solo|equipe|entreprise`** (aliases legacy `lead-capture/all-in-one/team` conservés)
+- **CTA S'abonner** → toujours `/subscribe/checkout` avec plan_id Stripe correct (`lead_capture` pour solo, `team` avec seats 2-9 pour equipe, `team` avec seats 10+ pour entreprise). **Tunnel Stripe intact**.
+- **Features par palier** (chaque niveau inclut le précédent) : Solo = OCR/NFC/débriefs vocaux/score/export · Équipe = + dashboard manager + sync CRM HubSpot/Salesforce · Entreprise = + archivage auto CRM + comparateur IA + synthèse compte + graphe
+- **Compteur licences** actif sur Équipe (2-9) et Entreprise (10-50) — le nombre alimente Stripe seats
+- Vérifié desktop 1920px + mobile 390px (zéro overflow, cards empilées proprement)
+
 ## Design v4.8 — Feature-gating LC (plan / sièges / essai anti-abus) (Feb 2026)
 
 - **Nouvelle collection `lead_capture_trial_ledger`** — index unique sur `email`, permanent, **survit à la suppression du compte** (anti-abus : 1 essai par email à vie)
