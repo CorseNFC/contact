@@ -3,6 +3,25 @@
 ## Statut Global
 **🟢 EN PRODUCTION** — kallitag.fr (Vercel) + api.kallitag.fr (Railway) + MongoDB Atlas
 
+## Design v4.8 — Feature-gating LC (plan / sièges / essai anti-abus) (Feb 2026)
+
+- **Nouvelle collection `lead_capture_trial_ledger`** — index unique sur `email`, permanent, **survit à la suppression du compte** (anti-abus : 1 essai par email à vie)
+- **Helpers ajoutés** (`server.py`) :
+  - `_lc_derive_plan(seats)` → renvoie `(plan_slug, unit_price_eur)` selon la grille : 1→solo 24.90€, 2-9→equipe 21.90€, 10+→entreprise 19.90€ (plancher)
+  - `_lc_get_or_start_trial(email)` → lit ou crée le ledger, renvoie `{on_trial, days_left, ends_at}` (7 jours par défaut à la première visite)
+  - `_lc_seats_used(company_id)` → compte users actifs sur le même `company_id`
+  - `_lc_subscription_block(email)` → shape `{status, plan, seats_allowed, seats_used, unit_price_eur, current_period_end}`
+  - `_lc_build_auth_response(email)` → shape enrichie complète pour l'auth
+- **Endpoint `POST /api/lead-capture/auth` enrichi** (additif — les clés v1 `ok`, `lead_capture_active`, `user{id,email,name,company,company_id,role,nfc_card_id}` restent) :
+  - `user.plan` ∈ {solo, equipe, entreprise}
+  - `user.seats: {allowed, used}`
+  - `subscription: {status, plan, seats_allowed, seats_used, unit_price_eur, current_period_end}`
+  - `trial: {on_trial, days_left, ends_at}`
+- **Règles de priorité pour `lead_capture_active`** : sub active/trialing OU essai valide → `true`, sinon `false`
+- **Alias `/api/leadcapture/auth`** hérite automatiquement (délègue à la même fonction)
+- **Tests** : 7 nouveaux dans `tests/test_lc_feature_gating.py` — trial 7j sur fresh user, ledger survit à la suppression + recréation (pas de re-trial), sub solo/equipe/entreprise renvoie plan + unit_price corrects, expired trial + canceled sub bloquent l'accès, backward-compat des clés v1
+- ⚠️ **Stripe tiered pricing** : la grille dégressive doit être implémentée côté Stripe Dashboard via un unique Price avec des paliers (1: 2490 cents, 2-9: 2190 cents, 10+: 1990 cents). Aujourd'hui le prix est calculé côté kallitag depuis la quantité de sièges enregistrée dans `subscriptions_col.seats` — la source Stripe doit être configurée manuellement.
+
 ## Design v4.7 — Intégration Lead Capture complète (Feb 2026)
 
 - **Alias endpoint `/api/leadcapture/auth`** (sans tiret) — identique à `/api/lead-capture/auth`, pour s'aligner sur la spec côté LC

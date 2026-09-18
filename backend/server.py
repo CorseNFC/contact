@@ -47,6 +47,12 @@ scans_col = db["profile_scans"]
 subscriptions_col = db["subscriptions"]
 leads_col = db["leads"]
 login_attempts_col = db["login_attempts"]
+# Permanent trial ledger — survives account deletion (anti-abuse: 1 trial per email lifetime)
+lc_trial_ledger_col = db["lead_capture_trial_ledger"]
+try:
+    lc_trial_ledger_col.create_index("email", unique=True)
+except Exception:
+    pass
 
 # --- Stripe ---
 # Support both STRIPE_API_KEY (per LC spec) and legacy STRIPE_SECRET_KEY
@@ -2073,6 +2079,83 @@ def _lc_hash(code: str, email: str) -> str:
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
+# ---------- Lead Capture plan / seats / trial helpers ----------
+LC_TRIAL_DAYS = 7
+# Public plan slugs consumed by the Lead Capture app
+# Grid: Solo 24.90€/seat (1 seat), Équipe 21.90€/seat (2+), Entreprise 19.90€/seat (10+ floor)
+LC_UNIT_EUR_SOLO      = 24.90
+LC_UNIT_EUR_EQUIPE    = 21.90
+LC_UNIT_EUR_ENTERPRISE = 19.90   # floor
+
+
+def _lc_derive_plan(seats: int) -> tuple:
+    """(plan_slug, unit_price_eur) from a seat quantity."""
+    if seats <= 1:
+        return "solo", LC_UNIT_EUR_SOLO
+    if seats < 10:
+        return "equipe", LC_UNIT_EUR_EQUIPE
+    return "entreprise", LC_UNIT_EUR_ENTERPRISE
+
+
+def _lc_get_or_start_trial(email_l: str) -> Dict[str, Any]:
+    """Return the trial state for this email. Auto-starts a 7-day trial on the
+    very first auth call — permanent ledger prevents re-trials after deletion."""
+    doc = lc_trial_ledger_col.find_one({"email": email_l}, {"_id": 0})
+    now = datetime.now(timezone.utc)
+    if not doc:
+        # First time this email is seen — start the trial (kept forever)
+        ends_at = now + timedelta(days=LC_TRIAL_DAYS)
+        try:
+            lc_trial_ledger_col.insert_one({
+                "email": email_l,
+                "first_started_at": now.isoformat(),
+                "ends_at": ends_at.isoformat(),
+                "consumed": True,   # a trial has been granted → never grant again
+            })
+        except Exception:
+            pass
+        return {"on_trial": True, "days_left": LC_TRIAL_DAYS, "ends_at": ends_at.isoformat()}
+    # Ledger hit — the email already had a trial. Check if it's still valid.
+    try:
+        ends_at = datetime.fromisoformat(doc["ends_at"])
+        if ends_at.tzinfo is None:
+            ends_at = ends_at.replace(tzinfo=timezone.utc)
+    except Exception:
+        return {"on_trial": False, "days_left": 0, "ends_at": None}
+    if ends_at > now:
+        days_left = max(0, (ends_at - now).days)
+        return {"on_trial": True, "days_left": days_left, "ends_at": ends_at.isoformat()}
+    return {"on_trial": False, "days_left": 0, "ends_at": ends_at.isoformat()}
+
+
+def _lc_seats_used(company_id: Optional[str], self_email: str) -> int:
+    """Count active LC users on the same company (fallback: 1 for solo accounts)."""
+    if not company_id:
+        return 1
+    return users_col.count_documents({
+        "company_id": company_id,
+        "lead_capture_active": True,
+    }) or 1
+
+
+def _lc_subscription_block(email_l: str) -> Dict[str, Any]:
+    """Return the current subscription block from subscriptions_col — falls back
+    to a 'trialing' shape if the user is on trial but has no paid plan yet."""
+    sub = subscriptions_col.find_one({"email": email_l}, {"_id": 0},
+                                     sort=[("updated_at", -1)]) or {}
+    status = sub.get("status")
+    seats_allowed = int(sub.get("seats") or sub.get("quantity") or 1)
+    plan_slug, unit_price = _lc_derive_plan(seats_allowed)
+    return {
+        "status": status,
+        "plan": plan_slug if status in {"active", "trialing"} else None,
+        "seats_allowed": seats_allowed if status in {"active", "trialing"} else 0,
+        "seats_used": 0,  # filled by caller (needs self_email + company_id)
+        "unit_price_eur": unit_price if status in {"active", "trialing"} else None,
+        "current_period_end": sub.get("current_period_end"),
+    }
+
+
 def _lc_user_snapshot(email: str) -> Dict[str, Any]:
     """Build the user snapshot from users_col (source of truth for
     lead_capture_active) + most recent order (for name / company / slug)."""
@@ -2094,6 +2177,40 @@ def _lc_user_snapshot(email: str) -> Dict[str, Any]:
         "company_id": user.get("company_id") or None,
         "role":       user.get("role", "MANAGER"),
         "nfc_card_id": latest.get("profile_slug", "") or "",
+    }
+
+
+def _lc_build_auth_response(email_l: str) -> Dict[str, Any]:
+    """Enriched response consumed by Kallitag Lead Capture (feature-gating)."""
+    user_doc = users_col.find_one({"email": email_l}, {"_id": 0}) or {}
+    user = _lc_user_snapshot(email_l)
+    trial = _lc_get_or_start_trial(email_l)
+    sub_block = _lc_subscription_block(email_l)
+    seats_used = _lc_seats_used(user.get("company_id"), email_l)
+    sub_block["seats_used"] = seats_used
+
+    has_paid = sub_block["status"] in {"active", "trialing"}
+    lc_active = bool(user_doc.get("lead_capture_active", False)) or has_paid or trial["on_trial"]
+
+    # user.plan / user.seats — reflect the *effective* plan for feature-gating
+    if has_paid:
+        eff_plan = sub_block["plan"]
+        seats_allowed = sub_block["seats_allowed"]
+    elif trial["on_trial"]:
+        eff_plan = "solo"
+        seats_allowed = 1
+    else:
+        eff_plan = "solo"
+        seats_allowed = 0
+    user["plan"] = eff_plan
+    user["seats"] = {"allowed": seats_allowed, "used": seats_used}
+
+    return {
+        "ok": True,
+        "lead_capture_active": lc_active,
+        "user": user,
+        "subscription": sub_block,
+        "trial": trial,
     }
 
 
@@ -2172,11 +2289,7 @@ async def lead_capture_auth(
 
     # 1) Preferred path — real password check against users_col.password_hash
     if user_doc.get("password_hash") and verify_password(body.password, user_doc["password_hash"]):
-        return {
-            "ok": True,
-            "lead_capture_active": bool(user_doc.get("lead_capture_active", False)),
-            "user": _lc_user_snapshot(email_l),
-        }
+        return _lc_build_auth_response(email_l)
 
     # 2) Backward-compat — OTP path (still supported, will fade out)
     otp_doc = lead_capture_otp_col.find_one({"email": email_l, "used": False})
@@ -2191,11 +2304,7 @@ async def lead_capture_auth(
             if _lc_hash(body.password.strip(), email_l) == otp_doc.get("code_hash"):
                 lead_capture_otp_col.update_one({"_id": otp_doc["_id"]},
                     {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}})
-                return {
-                    "ok": True,
-                    "lead_capture_active": bool(user_doc.get("lead_capture_active", False)),
-                    "user": _lc_user_snapshot(email_l),
-                }
+                return _lc_build_auth_response(email_l)
             lead_capture_otp_col.update_one({"_id": otp_doc["_id"]}, {"$inc": {"attempts": 1}})
 
     raise HTTPException(401, "invalid_credentials")
