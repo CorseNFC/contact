@@ -240,7 +240,7 @@ export default function Tarifs() {
                   >
                     {loadingSlug === p.slug
                       ? <Loader2 className="animate-spin" size={16} />
-                      : <>Commencer l'essai gratuit <ArrowRight size={16} /></>}
+                      : <>S'abonner <ArrowRight size={16} /></>}
                   </button>
                 </motion.div>
               );
