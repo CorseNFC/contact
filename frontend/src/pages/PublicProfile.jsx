@@ -84,7 +84,7 @@ export default function PublicProfile() {
     </div>
   );
 
-  const p = state.profile;
+  const p = state.profile_raw || state.profile;
   const kind = state.product_kind;
 
   if (kind === "reviews") {

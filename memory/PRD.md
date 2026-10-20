@@ -268,4 +268,5 @@ Chaque Price doit être `Recurring` et pour Équipe/Entreprise `Quantity` (le no
 - `/app/frontend/public/sw.js` : réseau d'abord avec repli sur le cache (délai max 4 s) pour les pages + `GET /api/profile/{slug}`, cache d'abord pour les images (photos/logo Cloudinary), cache pour JS/CSS/polices. Enregistré dans `src/index.js`.
 - Formulaire lead hors-ligne : mis en attente dans localStorage (`kt_pending_leads`), envoyé au démarrage de l'app et à l'événement `online` (`flushLeadQueue` dans `lib/api.js`).
 - Limite : le 1er scan demande obligatoirement du réseau. Vérifié avec Playwright en mode hors-ligne.
+- Bug corrigé (2026-10-20) : les pages `/p/:slug` s'affichaient basiques. Cause : depuis l'intégration Lead Capture, `GET /api/profile/{slug}` renvoie `profile` au format simplifié et les vraies données dans `profile_raw`. `PublicProfile.jsx` lit maintenant `profile_raw` (avec repli sur `profile`).
 
