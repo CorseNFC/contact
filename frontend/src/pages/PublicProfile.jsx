@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { Loader2, ExternalLink, Star, PawPrint, Phone, Mail, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import ProfilePreview from "@/components/ProfilePreview";
-import { api, trackScan, submitLead } from "@/lib/api";
+import { api, trackScan, submitLead, queueLead } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -55,11 +55,22 @@ export default function PublicProfile() {
 
   const submit = async (e) => {
     e.preventDefault();
+    const reset = () => { setLeadOpen(false); setLead({ name: "", email: "", phone: "", message: "" }); };
+    if (!navigator.onLine) {
+      queueLead(slug, lead); reset();
+      toast.success("Pas de réseau : message enregistré, il sera envoyé automatiquement dès le retour de la connexion.");
+      return;
+    }
     try {
       await submitLead(slug, lead);
       toast.success("Message envoyé — vous serez recontacté(e).");
-      setLeadOpen(false); setLead({ name: "", email: "", phone: "", message: "" });
-    } catch { toast.error("Envoi impossible"); }
+      reset();
+    } catch (err) {
+      if (!err.response) {
+        queueLead(slug, lead); reset();
+        toast.success("Connexion instable : message enregistré, il sera envoyé dès le retour du réseau.");
+      } else toast.error("Envoi impossible");
+    }
   };
 
   if (state.status === "loading") return <div className="min-h-screen grid place-items-center bg-[#FAF7F0]" data-testid="profile-loading"><Loader2 className="animate-spin text-amber-400" /></div>;

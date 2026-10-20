@@ -31,6 +31,21 @@ export const releaseCard = async (slug) => (await api.post(`/me/orders/${slug}/r
 export const reclaimCard = async (code, email) => (await api.post("/reclaim", { code, email })).data;
 
 export const submitLead = async (slug, lead) => (await api.post(`/profile/${slug}/lead`, lead)).data;
+
+const LEAD_QUEUE_KEY = "kt_pending_leads";
+const readLeadQueue = () => JSON.parse(localStorage.getItem(LEAD_QUEUE_KEY) || "[]");
+export const queueLead = (slug, lead) =>
+  localStorage.setItem(LEAD_QUEUE_KEY, JSON.stringify([...readLeadQueue(), { slug, lead }]));
+export const flushLeadQueue = async () => {
+  const pending = readLeadQueue();
+  if (!pending.length || !navigator.onLine) return;
+  const remaining = [];
+  for (const item of pending) {
+    try { await submitLead(item.slug, item.lead); }
+    catch (e) { if (!e.response) remaining.push(item); }
+  }
+  localStorage.setItem(LEAD_QUEUE_KEY, JSON.stringify(remaining));
+};
 export const listLeads = async (slug) => (await api.get(`/me/leads/${slug}`)).data;
 export const leadsCsvUrl = (slug) => `${API}/me/leads/${slug}/export.csv`;
 

@@ -262,3 +262,10 @@ Chaque Price doit être `Recurring` et pour Équipe/Entreprise `Quantity` (le no
 - Thèmes user-customisables niveau accent (choix couleur perso global — le picker par élément couvre déjà les besoins texte)
 - Section reorder pour tous les layouts (actuellement Hero uniquement)
 - Éditeur libre canvas (drag & drop pixel-perfect des éléments)
+
+## 2026-10-20 — Carte NFC hors-ligne (service worker)
+- Demande : "quand j'encode mes cartes avec l'URL, la carte de visite ne fonctionne que lorsqu'il y a du réseau… pour que lors du premier scan la carte soit enregistrée (en cache)"
+- `/app/frontend/public/sw.js` : réseau d'abord avec repli sur le cache (délai max 4 s) pour les pages + `GET /api/profile/{slug}`, cache d'abord pour les images (photos/logo Cloudinary), cache pour JS/CSS/polices. Enregistré dans `src/index.js`.
+- Formulaire lead hors-ligne : mis en attente dans localStorage (`kt_pending_leads`), envoyé au démarrage de l'app et à l'événement `online` (`flushLeadQueue` dans `lib/api.js`).
+- Limite : le 1er scan demande obligatoirement du réseau. Vérifié avec Playwright en mode hors-ligne.
+
